@@ -2,16 +2,16 @@ from collections import deque
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from numpy import mean, std
+from numpy import mean, std, percentile
 from numpy.random import poisson
 
 
 class Policy(object):
 
-    def __init__(self, alarm, last_fired_time, cooldown_time):
+    def __init__(self, alarm, last_fired_time, cooldown):
         self.alarm = alarm
         self.last_fired_time = last_fired_time
-        self.cooldown_time = cooldown_time
+        self.cooldown = cooldown
 
 
 class Alarm(object):
@@ -23,12 +23,12 @@ class Alarm(object):
     OK = 0
     ALARM = 1
 
-    def __init__(self, metric, threshold, comparison, periods_time):
+    def __init__(self, metric, threshold, comparison, period):
         self.metric = metric
         self.state = OK
 
     def state(self):
-        recent_mean = mean(metric[-periods_time:], threshold)
+        recent_mean = mean(metric[-period:], threshold)
         # Apparently alarms return immediately (in one period) to OK
         if comparison(recent_mean, threshold) and comparison(metric[-1], threshold):
             return ALARM
@@ -67,7 +67,7 @@ class Model(object):
     - No containers: Only one build at a time per builder
     - Only one type of build: Every build takes exactly the same integer number of seconds
     """
-    def __init__(self, builds_per_hour=10.0, build_run_time=300, initial_builder_count=1, builder_boot_time=300, sec_per_tick=5):
+    def __init__(self, builds_per_hour=10.0, build_run_time=300, initial_builder_count=1, builder_boot_time=300, sec_per_tick=10):
 
         # Config
         self.sec_per_tick = sec_per_tick
@@ -87,6 +87,7 @@ class Model(object):
 
         # Metrics
         self.builders_available = []
+        self.builders_total = []
         self.build_queue_length = []
 
         # Boot initial builders
@@ -106,8 +107,17 @@ class Model(object):
         r = l / u
         return (1 / (2 * u)) * (r / (1 - r)) * self.sec_per_tick
 
+    def queue_times(self):
+        return [(b.started_time - b.queued_time) * self.sec_per_tick for b in self.finished_builds]
+
     def mean_queue_time(self):
-        return mean([(b.started_time - b.queued_time) for b in self.finished_builds]) * self.sec_per_tick
+        return mean(self.queue_times())
+
+    def percentile_queue_time(self, ptile):
+        return percentile(self.queue_times(), ptile)
+
+    def mean_percent_utilization(self):
+        return mean([float(t - a) / float(t) for a, t in zip(self.builders_available, self.builders_total)]) * 100.0
 
     def make_builder(self):
         return Builder(self.ticks, self.builder_boot_time_ticks)
@@ -133,12 +143,13 @@ class Model(object):
 
     def update_metrics(self):
         self.builders_available.append(len([b for b in self.builders if b.available(self.ticks)]))
+        self.builders_total.append(len(self.builders))
         self.build_queue_length.append(len(self.build_queue))
 
     def advance(self):
         self.queue_builds()
-        self.start_builds()
         self.finish_builds()
+        self.start_builds()
         self.update_metrics()
         # scale
         self.ticks += 1
@@ -147,7 +158,7 @@ def run_model(ticks, **kwargs):
     m = Model(**kwargs)
     for i in range(ticks):
         m.advance()
-    return m.theoretical_queue_time() / 60.0, m.mean_queue_time() / 60.0
+    return m
 
 def make_resolution_plot(ticks, resolution):
     theoretical_series = []
@@ -156,11 +167,11 @@ def make_resolution_plot(ticks, resolution):
 
     for run_time in run_times:
         per_hour = 60.0 / float(run_time) * 0.3
-        theoretical, measured = run_model(ticks, build_run_time=(run_time * 60), builds_per_hour=per_hour, sec_per_tick=resolution)
-        theoretical_series.append(theoretical)
-        measured_series.append(measured)
+        m = run_model(ticks, build_run_time=(run_time * 60), builds_per_hour=per_hour, sec_per_tick=resolution)
+        theoretical_series.append(m.theoretical_queue_time() / 60.0)
+        measured_series.append(m.measured_queue_time() / 60.0)
 
-    plt.title('Queue Times at 0.3X Capacity')
+    plt.title('Queue Times at 0.3X Capacity @ %d sec/tick' % resolution)
     plt.xlabel('Build Time (m)')
     plt.ylabel('Mean Queue Time (m)')
     t_handle, = plt.plot(run_times, theoretical_series, label='Theoretical')
@@ -173,4 +184,28 @@ def make_resolution_plots():
     make_resolution_plot(1000000, 60)
     make_resolution_plot(1000000, 10)
 
-make_resolution_plots()
+def make_queue_time_v_utilization_plot():
+    counts = range(84,100)
+    means = []
+    p95s = []
+    utilizations = []
+
+    for count in counts:
+        m = run_model(100000, build_run_time=300, builds_per_hour=1000.0, initial_builder_count=count, builder_boot_time=0)
+        means.append(m.mean_queue_time() / 60.0)
+        p95s.append(m.percentile_queue_time(95.0) / 60.0)
+        utilizations.append(m.mean_percent_utilization())
+
+    plt.title('Processing 1000 5min Builds / Hr')
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    m_handle, = ax1.plot(counts, means, 'g-', label='Mean Queue Time (m)')
+    p_handle, = ax1.plot(counts, p95s, 'r-', label='p95 Queue Time (m)')
+    ax1.set_xlabel('Fleet Size')
+    ax1.set_ylabel('Time (m)')
+
+    ax2 = ax1.twinx()
+    u_handle, = ax2.plot(counts, utilizations, 'b-', label='% Builder Utilization')
+    ax2.set_ylabel('% Utilization')
+    plt.legend(handles=[m_handle, p_handle, u_handle])
+    plt.savefig('plots/queue_time_v_utilization')
