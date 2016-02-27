@@ -2,7 +2,7 @@ from collections import deque
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from numpy import mean
+from numpy import mean, std
 from numpy.random import poisson
 
 
@@ -99,6 +99,8 @@ class Model(object):
         r = l / u
         return (1 / (2 * u)) * (r / (1 - r))
 
+    def mean_queue_time(self):
+        return mean([(b.started_time - b.queued_time) for b in self.finished_builds])
 
     def make_builder(self):
         return Builder(self.time, self.builder_boot_time)
@@ -134,11 +136,27 @@ class Model(object):
         # scale
         self.time += 1
 
-m = Model(builds_per_hour=0.25, build_run_time=120, builder_boot_time=0)
-for i in range(20000000):
-    if i % 1000000 == 0:
-        print len(m.build_queue)
-    m.advance()
+def run_model(ticks, **kwargs):
+    m = Model(**kwargs)
+    for i in range(ticks):
+        m.advance()
+    return m.theoretical_queue_time(), m.mean_queue_time()
 
-print "Theoretical mean queue time:", m.theoretical_queue_time()
-print "Measured mean queue time:", mean([(b.started_time - b.queued_time) for b in m.finished_builds])
+
+theoretical_series = []
+measured_series = []
+run_times = range(1, 30)
+
+for run_time in run_times:
+    per_hour = 60.0 / float(run_time) * 0.3
+    theoretical, measured = run_model(1000000, build_run_time=run_time, builds_per_hour=per_hour)
+    theoretical_series.append(theoretical)
+    measured_series.append(measured)
+
+plt.title('Queue Times at 0.3X Capacity')
+plt.xlabel('Build Time (m)')
+plt.ylabel('Mean Queue Time (m)')
+t_handle, = plt.plot(run_times, theoretical_series, label='Theoretical')
+m_handle, = plt.plot(run_times, measured_series, 'ro', label='Model')
+plt.legend(handles=[t_handle, m_handle])
+plt.savefig('fig')
