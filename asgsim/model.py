@@ -63,9 +63,14 @@ class Model(object):
 
     Current significant simplifications are:
     - No containers: Only one build at a time per builder
-    - Only one type of build: Every build takes exactly the same integer number of seconds
+    - Only one type of build: Every build takes exactly the same integer number
+      of seconds
+    - Assumes traffic is random: Random traffic is generated according to a
+      Poisson distribution, so things like end-of-day spikes in commits or strings
+      of repeated builds to detect flaky tests will not be modeled
     """
-    def __init__(self, builds_per_hour=10.0, build_run_time=300, initial_builder_count=1, builder_boot_time=300, sec_per_tick=10):
+    def __init__(self, builds_per_hour=10.0, build_run_time=300,
+                 initial_builder_count=1, builder_boot_time=300, sec_per_tick=10):
 
         # Config
         self.sec_per_tick = sec_per_tick
@@ -85,6 +90,7 @@ class Model(object):
 
         # Metrics
         self.builders_available = []
+        self.builders_in_use = []
         self.builders_total = []
         self.build_queue_length = []
 
@@ -115,7 +121,7 @@ class Model(object):
         return percentile(self.queue_times(), ptile)
 
     def mean_percent_utilization(self):
-        return mean([float(t - a) / float(t) for a, t in zip(self.builders_available, self.builders_total)]) * 100.0
+        return mean([float(u) / float(t) for u, t in zip(self.builders_in_use, self.builders_total)]) * 100.0
 
     def make_builder(self):
         return Builder(self.ticks, self.builder_boot_time_ticks)
@@ -141,6 +147,7 @@ class Model(object):
 
     def update_metrics(self):
         self.builders_available.append(len([b for b in self.builders if b.available(self.ticks)]))
+        self.builders_in_use.append(len([b for b in self.builders if b.build]))
         self.builders_total.append(len(self.builders))
         self.build_queue_length.append(len(self.build_queue))
 
