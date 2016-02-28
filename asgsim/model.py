@@ -18,20 +18,43 @@ class Alarm(object):
     # have data and OK is equivalent to start with.
     # Also no need to track state transitions since
     # scaling policies re-fire on every ALARM period.
-    OK = 0
-    ALARM = 1
+    # Only the average metric is implemented.
 
-    def __init__(self, metric, threshold, comparison, period):
+    LT=0
+    GT=1
+    OK=2
+    ALARM=3
+
+    def __init__(self, metric, threshold, comparison, period_duration, period_count):
         self.metric = metric
-        self.state = OK
+        self.threshold = threshold
+        self.comparison = comparison
+        self.period_duration = period_duration
+        self.period_count = period_count
+
+    def averaged_metric(self):
+        unaveraged = self.metric[-(self.period_count * self.period_duration):]
+        averaged = []
+        for period in range(self.period_count):
+            start = period * self.period_duration
+            end = start + self.period_duration
+            averaged.append(mean(unaveraged[start:end]))
+        return averaged
+
+    def value_not_ok(self, value):
+        if self.comparison == self.LT:
+            return value < self.threshold
+        if self.comparison == self.GT:
+            return value > self.threshold
 
     def state(self):
-        recent_mean = mean(metric[-period:], threshold)
         # Apparently alarms return immediately (in one period) to OK
-        if comparison(recent_mean, threshold) and comparison(metric[-1], threshold):
-            return ALARM
+        if len(self.metric) < self.period_count * self.period_duration:
+            return self.OK
+        elif all([self.value_not_ok(v) for v in self.averaged_metric()]):
+            return self.ALARM
         else:
-            return OK
+            return self.OK
 
 
 class Build(object):
