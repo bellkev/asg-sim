@@ -1,9 +1,11 @@
 from collections import deque
+from multiprocessing import Pool
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from numpy import mean, std, percentile
-from numpy.random import poisson
+from numpy.random import poisson, rand
 
 
 class Policy(object):
@@ -154,20 +156,20 @@ class Model(object):
         # scale
         self.ticks += 1
 
-def run_model(ticks, **kwargs):
+def run_model(ticks=0, **kwargs):
     m = Model(**kwargs)
     for i in range(ticks):
         m.advance()
     return m
 
-def make_resolution_plot(ticks, resolution):
+def make_resolution_plot(resolution):
     theoretical_series = []
     measured_series = []
     run_times = range(1, 30)
 
     for run_time in run_times:
         per_hour = 60.0 / float(run_time) * 0.3
-        m = run_model(ticks, build_run_time=(run_time * 60), builds_per_hour=per_hour, sec_per_tick=resolution)
+        m = run_model(ticks=1000000, build_run_time=(run_time * 60), builds_per_hour=per_hour, sec_per_tick=resolution)
         theoretical_series.append(m.theoretical_queue_time() / 60.0)
         measured_series.append(m.measured_queue_time() / 60.0)
 
@@ -181,24 +183,24 @@ def make_resolution_plot(ticks, resolution):
     plt.close()
 
 def make_resolution_plots():
-    make_resolution_plot(1000000, 60)
-    make_resolution_plot(1000000, 10)
+    make_resolution_plot(60)
+    make_resolution_plot(10)
 
 def make_queue_time_v_utilization_plot():
-    counts = range(84,100)
+    counts = range(84, 100)
     means = []
     p95s = []
     utilizations = []
 
     for count in counts:
-        m = run_model(100000, build_run_time=300, builds_per_hour=1000.0, initial_builder_count=count, builder_boot_time=0)
+        m = run_model(ticks=100000, build_run_time=300, builds_per_hour=1000.0, initial_builder_count=count, builder_boot_time=0)
         means.append(m.mean_queue_time() / 60.0)
         p95s.append(m.percentile_queue_time(95.0) / 60.0)
         utilizations.append(m.mean_percent_utilization())
 
-    plt.title('Processing 1000 5min Builds / Hr')
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
+    ax1.set_title('Processing 1000 5min Builds / Hr')
     m_handle, = ax1.plot(counts, means, 'g-', label='Mean Queue Time (m)')
     p_handle, = ax1.plot(counts, p95s, 'r-', label='p95 Queue Time (m)')
     ax1.set_xlabel('Fleet Size')
@@ -209,3 +211,89 @@ def make_queue_time_v_utilization_plot():
     ax2.set_ylabel('% Utilization')
     plt.legend(handles=[m_handle, p_handle, u_handle])
     plt.savefig('plots/queue_time_v_utilization')
+    plt.close()
+
+def cost(opts):
+    # Cost parameters
+    sec_per_tick = 10
+    cost_per_dev_hour = 100 # a reasonably average contractor rate
+    adjusted_cost_per_dev_hour = cost_per_dev_hour * 2 # adjust for a bit of a "concentration loss factor"
+    cost_per_builder_hour = 0.12 # m4.large on-demand price
+    #cost_per_builder_hour = 4.698 # 2x m4.10xl on-demand price
+    builds_per_hour = opts['builds_per_hour']
+    ticks = opts['ticks']
+    simulation_time_hours = ticks * sec_per_tick / 3600.0
+
+    m = run_model(build_run_time=300, builder_boot_time=0, sec_per_tick=sec_per_tick, **opts)
+    return simulation_time_hours * (mean(m.builders_available) * cost_per_builder_hour
+                                    + builds_per_hour * m.mean_queue_time() / 3600.0 * adjusted_cost_per_dev_hour)
+
+def make_cost_curve_plot():
+    sizes = range(100,150,10)
+    opts = [{'initial_builder_count': size, 'builds_per_hour': 1000.0, 'ticks': 100000} for size in sizes]
+
+    p = Pool(8)
+    costs = p.map(cost, opts)
+
+    plt.plot(sizes, costs)
+    plt.savefig('plots/cost_curve')
+
+def make_cost_v_traffic_plot():
+    configs = [
+        {'sizes': range(1, 20), 'builds_per_hour': 10.0, 'color': 'b'},
+        {'sizes': range(5, 25), 'builds_per_hour': 50.0, 'color': 'g'},
+        {'sizes': range(10, 30), 'builds_per_hour': 100.0, 'color': 'r'},
+        {'sizes': range(20, 40), 'builds_per_hour': 200.0, 'color': 'c'},
+        {'sizes': range(55, 75), 'builds_per_hour': 500.0, 'color': 'm'},
+        {'sizes': range(105, 125), 'builds_per_hour': 1000.0, 'color': 'y'}
+    ]
+    handles = []
+    minima = []
+    for config in configs:
+        opts = [{'builds_per_hour': config['builds_per_hour'], 'initial_builder_count': size, 'ticks': 100000} for size in config['sizes']]
+        p = Pool(8)
+        costs = p.map(cost, opts)
+        handle, = plt.plot(config['sizes'], costs, config['color'] + '-', label='%.0f builds per hour' % config['builds_per_hour'])
+        handles.append(handle)
+        min_cost = min(costs)
+        min_size = config['sizes'][costs.index(min_cost)]
+        minima.append((min_size, min_cost))
+    plt.axis([0, 150, 0, 3000])
+    plt.plot([m[0] for m in minima], [m[1] for m in minima], 'ko')
+    plt.legend(handles=handles)
+    plt.savefig('plots/fig')
+    plt.close()
+    print 'Optimal fleet sizes:', minima
+
+def make_optimum_plot():
+    # Results from make_cost_v_traffic_plot
+    traffics = [10.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
+    minima = [(5, 148.60742284519017), (12, 273.10872866896966), (19, 373.08614927744213), (31, 510.3652143839505), (62, 787.45517381445654), (113, 1065.6187933792928)]
+    utilizations = []
+    means = []
+
+    for traffic, minimum in zip(traffics, minima):
+        size, cost = minimum
+        m = run_model(ticks=100000, builds_per_hour=traffic, build_run_time=300, builder_boot_time=0, sec_per_tick=10, initial_builder_count=size)
+        utilizations.append(m.mean_percent_utilization())
+        means.append(m.mean_queue_time())
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.set_title('Queue Time and Utilization at Optimum Fleet Sizes (5 min builds)')
+    m_handle, = ax1.plot(traffics, means, 'go', label='Mean Queue Time (s)')
+    ax1.axis([10, 1200, 0, 2])
+    ax1.set_xlabel('Builds per Hour')
+    ax1.set_ylabel('Time (s)')
+
+    ax2 = ax1.twinx()
+    u_handle, = ax2.plot(traffics, utilizations, 'bo', label='% Builder Utilization')
+    ax2.axis([10, 1200, 0, 100])
+    ax2.set_ylabel('% Utilization')
+    plt.legend(handles=[m_handle, u_handle])
+    plt.savefig('plots/optimum_fleet_size_props')
+    plt.close()
+
+
+if __name__ == '__main__':
+    make_optimum_plot()
