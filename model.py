@@ -224,7 +224,7 @@ def cost(opts):
     ticks = opts['ticks']
     simulation_time_hours = ticks * sec_per_tick / 3600.0
 
-    m = run_model(build_run_time=300, builder_boot_time=0, sec_per_tick=sec_per_tick, **opts)
+    m = run_model(builder_boot_time=0, sec_per_tick=sec_per_tick, **opts)
     return simulation_time_hours * (mean(m.builders_available) * cost_per_builder_hour
                                     + builds_per_hour * m.mean_queue_time() / 3600.0 * adjusted_cost_per_dev_hour)
 
@@ -250,7 +250,7 @@ def make_cost_v_traffic_plot():
     handles = []
     minima = []
     for config in configs:
-        opts = [{'builds_per_hour': config['builds_per_hour'], 'initial_builder_count': size, 'ticks': 100000} for size in config['sizes']]
+        opts = [{'builds_per_hour': config['builds_per_hour'], 'initial_builder_count': size, 'ticks': 100000, 'build_run_time': 300} for size in config['sizes']]
         p = Pool(8)
         costs = p.map(cost, opts)
         handle, = plt.plot(config['sizes'], costs, config['color'] + '-', label='%.0f builds per hour' % config['builds_per_hour'])
@@ -261,11 +261,11 @@ def make_cost_v_traffic_plot():
     plt.axis([0, 150, 0, 3000])
     plt.plot([m[0] for m in minima], [m[1] for m in minima], 'ko')
     plt.legend(handles=handles)
-    plt.savefig('plots/fig')
+    plt.savefig('plots/cost_v_traffic')
     plt.close()
     print 'Optimal fleet sizes:', minima
 
-def make_optimum_plot():
+def make_optimum_traffic_plot():
     # Results from make_cost_v_traffic_plot
     traffics = [10.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
     minima = [(5, 148.60742284519017), (12, 273.10872866896966), (19, 373.08614927744213), (31, 510.3652143839505), (62, 787.45517381445654), (113, 1065.6187933792928)]
@@ -280,7 +280,7 @@ def make_optimum_plot():
 
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
-    ax1.set_title('Queue Time and Utilization at Optimum Fleet Sizes (5 min builds)')
+    ax1.set_title('Optimum Queue Time and Utilization (5 min builds)')
     m_handle, = ax1.plot(traffics, means, 'go', label='Mean Queue Time (s)')
     ax1.axis([10, 1200, 0, 2])
     ax1.set_xlabel('Builds per Hour')
@@ -291,9 +291,72 @@ def make_optimum_plot():
     ax2.axis([10, 1200, 0, 100])
     ax2.set_ylabel('% Utilization')
     plt.legend(handles=[m_handle, u_handle])
-    plt.savefig('plots/optimum_fleet_size_props')
+    plt.savefig('plots/optimum_props_by_traffic')
+    plt.close()
+
+def make_cost_v_build_time_plot():
+    configs = [
+        {'sizes': range(1, 20), 'build_run_time': 30, 'color': 'b'},
+        {'sizes': range(1, 20), 'build_run_time': 60, 'color': 'g'},
+        {'sizes': range(1, 20), 'build_run_time': 120, 'color': 'r'},
+        {'sizes': range(5, 25), 'build_run_time': 300, 'color': 'c'},
+        {'sizes': range(15, 35), 'build_run_time': 600, 'color': 'm'},
+        {'sizes': range(25, 45), 'build_run_time': 1200, 'color': 'y'},
+        {'sizes': range(45, 65), 'build_run_time': 2400, 'color': 'k'}
+    ]
+    handles = []
+    minima = []
+    p = Pool(8)
+    for config in configs:
+        opts = [{'build_run_time': config['build_run_time'], 'initial_builder_count': size, 'ticks': 100000, 'builds_per_hour': 50.0} for size in config['sizes']]
+        costs = p.map(cost, opts)
+        if 'build_run_time' == 30:
+            lab = '30 sec builds'
+        else:
+            lab = '%d min builds' % (config['build_run_time'] / 60)
+        handle, = plt.plot(config['sizes'], costs, config['color'] + '-', label=lab)
+        handles.append(handle)
+        min_cost = min(costs)
+        min_size = config['sizes'][costs.index(min_cost)]
+        minima.append((min_size, min_cost))
+    plt.axis([0, 90, 0, 1000])
+    plt.plot([m[0] for m in minima], [m[1] for m in minima], 'ko')
+    plt.legend(handles=handles)
+    plt.savefig('plots/cost_v_build_time')
+    plt.close()
+    print 'Optimal fleet sizes:', minima
+
+def make_optimum_build_time_plot():
+    # Results from make_cost_v_build_time_plot
+    build_times = [30, 60, 120, 300, 600, 1200, 2400]
+    plot_times = [bt / 60.0 for bt in build_times]
+    minima = [(4, 122.30462423397832), (5, 156.90400521723009), (7, 186.61573547738476), (12, 266.18263968907178), (19, 391.88402948743175), (31, 497.54767044356112), (55, 739.6319964639514)]
+    utilizations = []
+    means = []
+
+    for build_time, minimum in zip(build_times, minima):
+        size, cost = minimum
+        m = run_model(ticks=100000, builds_per_hour=50.0, build_run_time=build_time, builder_boot_time=0, sec_per_tick=10, initial_builder_count=size)
+        utilizations.append(m.mean_percent_utilization())
+        means.append(m.mean_queue_time())
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.set_title('Optimum Queue Time and Utilization (50 builds / hour)')
+    m_handle, = ax1.plot(plot_times, means, 'go', label='Mean Queue Time (s)')
+    ax1.axis([0, 60, 0, 2])
+    ax1.set_xlabel('Build Time (m)')
+    ax1.set_ylabel('Time (s)')
+
+    ax2 = ax1.twinx()
+    u_handle, = ax2.plot(plot_times, utilizations, 'bo', label='% Builder Utilization')
+    ax2.axis([0, 60, 0, 100])
+    ax2.set_ylabel('% Utilization')
+    plt.legend(handles=[m_handle, u_handle])
+    plt.savefig('plots/optimum_props_by_build_time')
     plt.close()
 
 
+
 if __name__ == '__main__':
-    make_optimum_plot()
+    make_optimum_build_time_plot()
