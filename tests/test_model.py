@@ -10,6 +10,7 @@ def test_utilization():
     m.build_queue.append(Build(m.ticks, m.build_run_time))
     m.advance(200)
     assert m.mean_percent_utilization() == 12.5
+    assert m.mean_unused_builders() == 1.75
 
 def test_scale_up():
     m = Model(build_run_time=50, builder_boot_time=100,

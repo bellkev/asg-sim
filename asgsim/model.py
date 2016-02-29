@@ -177,6 +177,9 @@ class Model(object):
     def mean_percent_utilization(self):
         return mean([float(u) / float(t) for u, t in zip(self.builders_in_use, self.builders_total)]) * 100.0
 
+    def mean_unused_builders(self):
+        return mean([float(t) - float(u) for u, t in zip(self.builders_in_use, self.builders_total)])
+
     def boot_builders(self, count):
         for b in range(count):
             self.builders.add(Builder(self.ticks, self.builder_boot_time_ticks))
