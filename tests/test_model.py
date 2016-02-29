@@ -12,23 +12,24 @@ def test_utilization():
     assert m.mean_percent_utilization() == 12.5
 
 def test_scale_up():
-    m = Model(build_run_time=100, builder_boot_time=100,
-              builds_per_hour=0.0, sec_per_tick=1,
+    m = Model(build_run_time=50, builder_boot_time=100,
+              builds_per_hour=0.0, sec_per_tick=10,
               initial_builder_count=2, autoscale=True,
               alarm_period_duration=10, alarm_period_count=3,
-              scale_up_threshold=5, scale_up_change=2)
+              scale_up_threshold=5, scale_up_change=2,
+              scale_down_threshold=8, scale_down_change=1)
     assert len(m.builders) == 2
-    m.advance(110)
+    m.advance(11)
     # No scaling during cooldown
     # (ideal cooldown of builder_boot_time + alarm_period_duration)
     assert len(m.builders) == 2
     m.advance(1)
     assert len(m.builders) == 4
     # One more scale to get to desired range
-    m.advance(110)
+    m.advance(11)
     assert len(m.builders) == 6
     # But no more
-    m.advance(110)
+    m.advance(11)
     assert len(m.builders) == 6
 
 def test_graceful_shutdown():
@@ -43,6 +44,27 @@ def test_graceful_shutdown():
     assert len(m.builders) == 0
     finished = m.finished_builds[0]
     assert (finished.finished_time - finished.started_time) == m.build_run_time
+
+def test_scale_down():
+    m = Model(build_run_time=50, builder_boot_time=0,
+              builds_per_hour=0.0, sec_per_tick=1,
+              initial_builder_count=10, autoscale=True,
+              alarm_period_duration=10, alarm_period_count=3,
+              scale_up_threshold=5, scale_up_change=2,
+              scale_down_threshold=8, scale_down_change=1)
+    assert len(m.builders) == 10
+    m.advance(60)
+    # No scaling during cooldown
+    # (ideal cooldown of build_run_time + alarm_period_duration)
+    assert len(m.builders) == 10
+    m.advance(1)
+    assert len(m.builders) == 9
+    # One more scale to get to desired range
+    m.advance(60)
+    assert len(m.builders) == 8
+    # But no more
+    m.advance(60)
+    assert len(m.builders) == 8
 
 
 class TestBuilder(unittest.TestCase):

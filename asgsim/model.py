@@ -44,13 +44,14 @@ class Alarm(object):
 
     def averaged_metric(self):
         length = len(self.metric)
-        phase = length % self.period_duration
-        unaveraged = self.metric[-(self.period_count * self.period_duration + phase):(length - phase)]
+        slice_end = length - (length % self.period_duration)
+        slice_start = slice_end - self.period_duration * self.period_count
+        unaveraged = self.metric[slice_start:slice_end]
         averaged = []
         for period in range(self.period_count):
-            start = period * self.period_duration
-            end = start + self.period_duration
-            averaged.append(mean(unaveraged[start:end]))
+            period_start = period * self.period_duration
+            period_end = period_start + self.period_duration
+            averaged.append(mean(unaveraged[period_start:period_end]))
         return averaged
 
     def value_not_ok(self, value):
@@ -120,6 +121,8 @@ class Model(object):
         self.builds_per_tick = self.builds_per_hour / 3600.0 * float(self.sec_per_tick)
         self.build_run_time_ticks = self.build_run_time / self.sec_per_tick
         self.builder_boot_time_ticks = self.builder_boot_time / self.sec_per_tick
+        if self.autoscale:
+            self.alarm_period_duration_ticks = self.alarm_period_duration / self.sec_per_tick
 
         # Core model state
         self.ticks = 0
@@ -137,9 +140,14 @@ class Model(object):
         if self.autoscale:
             self.scale_up_alarm = Alarm(self.builders_available,
                                         self.scale_up_threshold, Alarm.LT,
-                                        self.alarm_period_duration / self.sec_per_tick,
+                                        self.alarm_period_duration_ticks,
                                         self.alarm_period_count)
-            self.scale_up_policy = ScalingPolicy(self.scale_up_change, self.builder_boot_time_ticks + self.alarm_period_duration)
+            self.scale_down_alarm = Alarm(self.builders_available,
+                                        self.scale_down_threshold, Alarm.GT,
+                                        self.alarm_period_duration_ticks,
+                                        self.alarm_period_count)
+            self.scale_up_policy = ScalingPolicy(self.scale_up_change, self.builder_boot_time_ticks + self.alarm_period_duration_ticks)
+            self.scale_down_policy = ScalingPolicy(self.scale_down_change, self.build_run_time_ticks + self.alarm_period_duration_ticks)
 
         # Boot initial builders
         self.boot_builders(self.initial_builder_count)
@@ -176,11 +184,11 @@ class Model(object):
     def shutdown_builders(self, count):
         shutdown = 0
         for b in self.builders:
+            if shutdown >= count:
+                break
             if not b.shutting_down:
                 b.shutting_down = True
                 shutdown += 1
-            if shutdown >= count:
-                break
 
     def power_off_builders(self):
         to_power_off = [b for b in self.builders if b.shutting_down and not b.build]
@@ -214,9 +222,14 @@ class Model(object):
         self.build_queue_length.append(len(self.build_queue))
 
     def scale(self):
-        if self.scale_up_alarm.state() == Alarm.ALARM:
-            new_count = self.scale_up_policy.maybe_scale(self.ticks)
-            self.boot_builders(new_count)
+        # Alarm states can only change on new periods
+        if self.ticks % self.alarm_period_duration_ticks == 0:
+            if self.scale_up_alarm.state() == Alarm.ALARM:
+                boot_count = self.scale_up_policy.maybe_scale(self.ticks)
+                self.boot_builders(boot_count)
+            if self.scale_down_alarm.state() == Alarm.ALARM:
+                shutdown_count = self.scale_down_policy.maybe_scale(self.ticks)
+                self.shutdown_builders(shutdown_count)
 
     def advance(self, ticks):
         for i in range(ticks):
