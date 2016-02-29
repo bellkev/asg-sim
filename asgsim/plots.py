@@ -5,6 +5,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from numpy import mean
 
+from .cost import cost
 from .model import run_model
 
 
@@ -17,7 +18,7 @@ def make_resolution_plot(resolution):
         per_hour = 60.0 / float(run_time) * 0.3
         m = run_model(ticks=1000000, build_run_time=(run_time * 60), builds_per_hour=per_hour, sec_per_tick=resolution)
         theoretical_series.append(m.theoretical_queue_time() / 60.0)
-        measured_series.append(m.measured_queue_time() / 60.0)
+        measured_series.append(m.mean_queue_time() / 60.0)
 
     plt.title('Queue Times at 0.3X Capacity @ %d sec/tick' % resolution)
     plt.xlabel('Build Time (m)')
@@ -28,9 +29,11 @@ def make_resolution_plot(resolution):
     plt.savefig('plots/%d_sec_per_tick' % resolution)
     plt.close()
 
+
 def make_resolution_plots():
     make_resolution_plot(60)
     make_resolution_plot(10)
+
 
 def make_queue_time_v_utilization_plot():
     counts = range(84, 100)
@@ -59,30 +62,20 @@ def make_queue_time_v_utilization_plot():
     plt.savefig('plots/queue_time_v_utilization')
     plt.close()
 
-def cost(opts):
-    # Cost parameters
-    sec_per_tick = 10
-    cost_per_dev_hour = 100 # a reasonably average contractor rate
-    adjusted_cost_per_dev_hour = cost_per_dev_hour * 2 # adjust for a bit of a "concentration loss factor"
-    cost_per_builder_hour = 0.12 # m4.large on-demand price
-    #cost_per_builder_hour = 4.698 # 2x m4.10xl on-demand price
-    builds_per_hour = opts['builds_per_hour']
-    ticks = opts['ticks']
-    simulation_time_hours = ticks * sec_per_tick / 3600.0
-
-    m = run_model(builder_boot_time=0, sec_per_tick=sec_per_tick, **opts)
-    return simulation_time_hours * (mean(m.builders_available) * cost_per_builder_hour
-                                    + builds_per_hour * m.mean_queue_time() / 3600.0 * adjusted_cost_per_dev_hour)
 
 def make_cost_curve_plot():
-    sizes = range(100,150,10)
-    opts = [{'initial_builder_count': size, 'builds_per_hour': 1000.0, 'ticks': 100000} for size in sizes]
+    sizes = range(100,150)
+    opts = [{'initial_builder_count': size, 'builds_per_hour': 1000.0,
+             'ticks': 100000, 'sec_per_tick': 10, 'builder_boot_time': 0}
+            for size in sizes]
 
     p = Pool(8)
     costs = p.map(cost, opts)
 
     plt.plot(sizes, costs)
     plt.savefig('plots/cost_curve')
+    plt.close()
+
 
 def make_cost_v_traffic_plot():
     configs = [
@@ -96,7 +89,11 @@ def make_cost_v_traffic_plot():
     handles = []
     minima = []
     for config in configs:
-        opts = [{'builds_per_hour': config['builds_per_hour'], 'initial_builder_count': size, 'ticks': 100000, 'build_run_time': 300} for size in config['sizes']]
+        opts = [{'builds_per_hour': config['builds_per_hour'],
+                 'initial_builder_count': size, 'ticks': 100000,
+                 'build_run_time': 300, 'sec_per_tick': 10,
+                 'builder_boot_time': 0}
+                for size in config['sizes']]
         p = Pool(8)
         costs = p.map(cost, opts)
         handle, = plt.plot(config['sizes'], costs, config['color'] + '-', label='%.0f builds per hour' % config['builds_per_hour'])
@@ -110,6 +107,7 @@ def make_cost_v_traffic_plot():
     plt.savefig('plots/cost_v_traffic')
     plt.close()
     print 'Optimal fleet sizes:', minima
+
 
 def make_optimum_traffic_plot():
     # Results from make_cost_v_traffic_plot
@@ -140,6 +138,7 @@ def make_optimum_traffic_plot():
     plt.savefig('plots/optimum_props_by_traffic')
     plt.close()
 
+
 def make_cost_v_build_time_plot():
     configs = [
         {'sizes': range(1, 20), 'build_run_time': 30, 'color': 'b'},
@@ -154,7 +153,11 @@ def make_cost_v_build_time_plot():
     minima = []
     p = Pool(8)
     for config in configs:
-        opts = [{'build_run_time': config['build_run_time'], 'initial_builder_count': size, 'ticks': 100000, 'builds_per_hour': 50.0} for size in config['sizes']]
+        opts = [{'build_run_time': config['build_run_time'],
+                 'initial_builder_count': size, 'ticks': 10000,
+                 'builds_per_hour': 50.0, 'sec_per_tick': 10,
+                 'builder_boot_time': 0}
+                for size in config['sizes']]
         costs = p.map(cost, opts)
         if 'build_run_time' == 30:
             lab = '30 sec builds'
@@ -171,6 +174,7 @@ def make_cost_v_build_time_plot():
     plt.savefig('plots/cost_v_build_time')
     plt.close()
     print 'Optimal fleet sizes:', minima
+
 
 def make_optimum_build_time_plot():
     # Results from make_cost_v_build_time_plot
@@ -202,8 +206,30 @@ def make_optimum_build_time_plot():
     plt.savefig('plots/optimum_props_by_build_time')
     plt.close()
 
+# def asg_cost():
+    # build_time_traffics = [(300, 10.0), (300, 50.0), (60, 50.0), (120, 50.0), (600, 50.0), (1200, 50.0)]
+    # boot_times = [10, 30, 60, 120, 300, 600, 1200]
+    # alarm_period_durations = [10, 60, 300]
+    # alarm_period_counts = [1, 2, 4]
+    # scale_up_down_thresholds = [(1, 1), (1, 2), (1, 4), (1, 8), (1, 16), (1, 32), (2, 2), (2, 4),
+    #                             (2, 8), (2, 16), (2, 32), (4, 4), (4, 8), (4, 16), (4, 32), (8, 8),
+    #                             (8, 16), (8, 32), (16, 16), (16, 32), (32, 32)]
+    # scale_up_changes = [1, 2, 4]
+    # scale_down_changes = [1, 2, 4]
 
 
 if __name__ == '__main__':
-    run_model()
-#    make_optimum_build_time_plot()
+    print 'Resolution'
+    make_resolution_plots()
+    print 'Queue Time v Utilization'
+    make_queue_time_v_utilization_plot()
+    print 'Cost Curve'
+    make_cost_curve_plot()
+    print 'Cost v Traffic'
+    make_cost_v_traffic_plot()
+    print 'Optimum Fleets Traffic'
+    make_optimum_traffic_plot()
+    print 'Cost v Build Time'
+    make_cost_v_build_time_plot()
+    print 'Optimum Fleets Build Time'
+    make_optimum_build_time_plot()
