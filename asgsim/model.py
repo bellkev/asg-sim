@@ -4,12 +4,22 @@ from numpy import mean, percentile
 from numpy.random import poisson
 
 
-class Policy(object):
+class ScalingPolicy(object):
 
-    def __init__(self, alarm, last_fired_time, cooldown):
-        self.alarm = alarm
-        self.last_fired_time = last_fired_time
+    # Only ChangeInCapacity is implemented
+
+    def __init__(self, change, cooldown):
+        self.change = change
+        # both last_fired_time and cooldown are in "ticks"
+        self.last_fired_time = 0
         self.cooldown = cooldown
+
+    def maybe_scale(self, time):
+        if (self.last_fired_time + self.cooldown) <= time:
+            self.last_fired_time = time
+            return self.change
+        else:
+            return 0
 
 
 class Alarm(object):
@@ -29,11 +39,13 @@ class Alarm(object):
         self.metric = metric
         self.threshold = threshold
         self.comparison = comparison
-        self.period_duration = period_duration
+        self.period_duration = period_duration # in "ticks"
         self.period_count = period_count
 
     def averaged_metric(self):
-        unaveraged = self.metric[-(self.period_count * self.period_duration):]
+        length = len(self.metric)
+        phase = length % self.period_duration
+        unaveraged = self.metric[-(self.period_count * self.period_duration + phase):(length - phase)]
         averaged = []
         for period in range(self.period_count):
             start = period * self.period_duration
@@ -49,7 +61,7 @@ class Alarm(object):
 
     def state(self):
         # Apparently alarms return immediately (in one period) to OK
-        if len(self.metric) < self.period_count * self.period_duration:
+        if len(self.metric) < (self.period_count * self.period_duration):
             return self.OK
         elif all([self.value_not_ok(v) for v in self.averaged_metric()]):
             return self.ALARM
@@ -92,18 +104,18 @@ class Model(object):
       Poisson distribution, so things like end-of-day spikes in commits or strings
       of repeated builds to detect flaky tests will not be modeled
     """
-    def __init__(self, builds_per_hour=10.0, build_run_time=300,
-                 initial_builder_count=1, builder_boot_time=300, sec_per_tick=10):
+
+    _defaults = dict(builds_per_hour=10.0, build_run_time=300, initial_builder_count=1,
+                     builder_boot_time=300, sec_per_tick=10, autoscale=False)
+
+    def __init__(self, **kwargs):
 
         # Config
-        self.sec_per_tick = sec_per_tick
-        self.builds_per_hour = builds_per_hour
+        self.__dict__.update(self._defaults)
+        self.__dict__.update(**kwargs)
         self.builds_per_tick = self.builds_per_hour / 3600.0 * float(self.sec_per_tick)
-        self.build_run_time_secs = build_run_time
-        self.build_run_time_ticks = self.build_run_time_secs / self.sec_per_tick
-        self.builder_boot_time_secs = builder_boot_time
-        self.builder_boot_time_ticks = self.builder_boot_time_secs / self.sec_per_tick
-        self.initial_builder_count = initial_builder_count
+        self.build_run_time_ticks = self.build_run_time / self.sec_per_tick
+        self.builder_boot_time_ticks = self.builder_boot_time / self.sec_per_tick
 
         # Core model state
         self.ticks = 0
@@ -117,9 +129,16 @@ class Model(object):
         self.builders_total = []
         self.build_queue_length = []
 
+        # Autoscaling
+        if self.autoscale:
+            self.scale_up_alarm = Alarm(self.builders_available,
+                                        self.scale_up_threshold, Alarm.LT,
+                                        self.alarm_period_duration / self.sec_per_tick,
+                                        self.alarm_period_count)
+            self.scale_up_policy = ScalingPolicy(self.scale_up_change, self.builder_boot_time_ticks + self.alarm_period_duration)
+
         # Boot initial builders
-        for b in range(self.initial_builder_count):
-            self.builders.add(self.make_builder())
+        self.make_builders(self.initial_builder_count)
 
     def theoretical_queue_time(self):
         """
@@ -146,8 +165,9 @@ class Model(object):
     def mean_percent_utilization(self):
         return mean([float(u) / float(t) for u, t in zip(self.builders_in_use, self.builders_total)]) * 100.0
 
-    def make_builder(self):
-        return Builder(self.ticks, self.builder_boot_time_ticks)
+    def make_builders(self, count):
+        for b in range(count):
+            self.builders.add(Builder(self.ticks, self.builder_boot_time_ticks))
 
     def queue_builds(self):
         n = poisson(self.builds_per_tick)
@@ -174,16 +194,22 @@ class Model(object):
         self.builders_total.append(len(self.builders))
         self.build_queue_length.append(len(self.build_queue))
 
-    def advance(self):
-        self.queue_builds()
-        self.finish_builds()
-        self.start_builds()
-        self.update_metrics()
-        # scale
-        self.ticks += 1
+    def scale(self):
+        if self.scale_up_alarm.state() == Alarm.ALARM:
+            new_count = self.scale_up_policy.maybe_scale(self.ticks)
+            self.make_builders(new_count)
+
+    def advance(self, ticks):
+        for i in range(ticks):
+            self.queue_builds()
+            self.finish_builds()
+            self.start_builds()
+            self.update_metrics()
+            if self.autoscale:
+                self.scale()
+            self.ticks += 1
 
 def run_model(ticks=0, **kwargs):
     m = Model(**kwargs)
-    for i in range(ticks):
-        m.advance()
+    m.advance(ticks)
     return m

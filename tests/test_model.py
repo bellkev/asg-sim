@@ -1,15 +1,35 @@
 import unittest
 
-from asgsim.model import Model, Build, Alarm
+from asgsim.model import Model, Build, Alarm, ScalingPolicy
 
 
 def test_utilization():
     m = Model(build_run_time=100, builder_boot_time=100,
               builds_per_hour=0.0, sec_per_tick=1, initial_builder_count=2)
-    for i in range(200): m.advance()
+    m.advance(200)
     m.build_queue.append(Build(m.ticks, 100))
-    for i in range(200): m.advance()
+    m.advance(200)
     assert m.mean_percent_utilization() == 12.5
+
+def test_scale_up():
+    m = Model(build_run_time=100, builder_boot_time=100,
+              builds_per_hour=0.0, sec_per_tick=1,
+              initial_builder_count=2, autoscale=True,
+              alarm_period_duration=10, alarm_period_count=3,
+              scale_up_threshold=5, scale_up_change=2)
+    assert len(m.builders) == 2
+    m.advance(110)
+    # No scaling during cooldown
+    # (ideal cooldown of builder_boot_time + alarm_period_duration)
+    assert len(m.builders) == 2
+    m.advance(1)
+    assert len(m.builders) == 4
+    # One more scale to get to desired range
+    m.advance(110)
+    assert len(m.builders) == 6
+    # But no more
+    m.advance(110)
+    assert len(m.builders) == 6
 
 
 class TestAlarm(unittest.TestCase):
@@ -64,3 +84,18 @@ class TestAlarm(unittest.TestCase):
         # Each period mean is 5.33 (> threshold)
         self.metric.extend([0,5,11,0,5,11,0,5,11,0,5,11])
         assert self.alarm.state() == Alarm.ALARM
+
+    def test_periodized_average(self):
+        self.alarm.period_duration = 3
+        self.metric.extend([6,6,6,6,6,6,6,6,6,6,6,6,0,0])
+        assert self.alarm.state() == Alarm.ALARM
+
+
+class TestScalingPolicy(unittest.TestCase):
+    def setUp(self):
+        self.policy = ScalingPolicy(2, 5)
+    def test_cooldown(self):
+        assert self.policy.maybe_scale(4) == 0
+        assert self.policy.maybe_scale(5) == 2
+        assert self.policy.maybe_scale(7) == 0
+        assert self.policy.maybe_scale(10) == 2
