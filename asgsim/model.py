@@ -72,20 +72,24 @@ class Alarm(object):
 class Build(object):
 
     def __init__(self, queued_time, run_time):
+        # All times in "ticks"
         self.queued_time = queued_time
         self.run_time = run_time
         self.started_time = None
+        self.finished_time = None
 
 
 class Builder(object):
 
     def __init__(self, booted_time, boot_time):
+        # All times in "ticks"
         self.booted_time = booted_time
         self.boot_time = boot_time
         self.build = None
+        self.shutting_down = False
 
     def available(self, current_time):
-        return not self.build and (self.booted_time + self.boot_time) <= current_time
+        return not self.shutting_down and not self.build and (self.booted_time + self.boot_time) <= current_time
 
 
 
@@ -138,7 +142,7 @@ class Model(object):
             self.scale_up_policy = ScalingPolicy(self.scale_up_change, self.builder_boot_time_ticks + self.alarm_period_duration)
 
         # Boot initial builders
-        self.make_builders(self.initial_builder_count)
+        self.boot_builders(self.initial_builder_count)
 
     def theoretical_queue_time(self):
         """
@@ -165,9 +169,23 @@ class Model(object):
     def mean_percent_utilization(self):
         return mean([float(u) / float(t) for u, t in zip(self.builders_in_use, self.builders_total)]) * 100.0
 
-    def make_builders(self, count):
+    def boot_builders(self, count):
         for b in range(count):
             self.builders.add(Builder(self.ticks, self.builder_boot_time_ticks))
+
+    def shutdown_builders(self, count):
+        shutdown = 0
+        for b in self.builders:
+            if not b.shutting_down:
+                b.shutting_down = True
+                shutdown += 1
+            if shutdown >= count:
+                break
+
+    def power_off_builders(self):
+        to_power_off = [b for b in self.builders if b.shutting_down and not b.build]
+        for b in to_power_off:
+            self.builders.remove(b)
 
     def queue_builds(self):
         n = poisson(self.builds_per_tick)
@@ -185,6 +203,7 @@ class Model(object):
     def finish_builds(self):
         for builder in self.builders:
             if builder.build and (builder.build.started_time + builder.build.run_time) <= self.ticks:
+                builder.build.finished_time = self.ticks
                 self.finished_builds.append(builder.build)
                 builder.build = None
 
@@ -197,7 +216,7 @@ class Model(object):
     def scale(self):
         if self.scale_up_alarm.state() == Alarm.ALARM:
             new_count = self.scale_up_policy.maybe_scale(self.ticks)
-            self.make_builders(new_count)
+            self.boot_builders(new_count)
 
     def advance(self, ticks):
         for i in range(ticks):
@@ -207,6 +226,7 @@ class Model(object):
             self.update_metrics()
             if self.autoscale:
                 self.scale()
+            self.power_off_builders()
             self.ticks += 1
 
 def run_model(ticks=0, **kwargs):

@@ -1,13 +1,13 @@
 import unittest
 
-from asgsim.model import Model, Build, Alarm, ScalingPolicy
+from asgsim.model import Model, Builder, Build, Alarm, ScalingPolicy
 
 
 def test_utilization():
     m = Model(build_run_time=100, builder_boot_time=100,
               builds_per_hour=0.0, sec_per_tick=1, initial_builder_count=2)
     m.advance(200)
-    m.build_queue.append(Build(m.ticks, 100))
+    m.build_queue.append(Build(m.ticks, m.build_run_time))
     m.advance(200)
     assert m.mean_percent_utilization() == 12.5
 
@@ -30,6 +30,39 @@ def test_scale_up():
     # But no more
     m.advance(110)
     assert len(m.builders) == 6
+
+def test_graceful_shutdown():
+    m = Model(build_run_time=10, builder_boot_time=0,
+              builds_per_hour=0.0, sec_per_tick=1,
+              initial_builder_count=2)
+    assert len(m.builders) == 2
+    m.build_queue.append(Build(m.ticks, m.build_run_time))
+    m.advance(5)
+    m.shutdown_builders(2)
+    m.advance(6)
+    assert len(m.builders) == 0
+    finished = m.finished_builds[0]
+    assert (finished.finished_time - finished.started_time) == m.build_run_time
+
+
+class TestBuilder(unittest.TestCase):
+
+    def setUp(self):
+        self.builder = Builder(0, 10)
+
+    def test_available(self):
+        assert self.builder.available(15)
+
+    def test_not_available_if_booting(self):
+        assert self.builder.available(5) == False
+
+    def test_not_available_if_busy(self):
+        self.builder.build = Build(5, 20)
+        assert self.builder.available(15) == False
+
+    def test_not_available_if_shutting_down(self):
+        self.builder.shutting_down = True
+        assert self.builder.available(15) == False
 
 
 class TestAlarm(unittest.TestCase):
