@@ -246,6 +246,7 @@ class Model(object):
             self.ticks += 1
 
 def run_model(ticks=0, **kwargs):
+    """Takes all the same kwargs as Model constructor + 'ticks' to run."""
     m = Model(**kwargs)
     m.advance(ticks)
     return m

@@ -1,6 +1,6 @@
 import unittest
 
-from asgsim.model import Model, Builder, Build, Alarm, ScalingPolicy
+from asgsim.model import Model, Builder, Build, Alarm, ScalingPolicy, run_model
 
 
 def test_utilization():
@@ -67,6 +67,9 @@ def test_scale_down():
     m.advance(60)
     assert len(m.builders) == 8
 
+def test_run_model():
+    m = run_model(ticks=100)
+    assert m.ticks == 100
 
 class TestBuilder(unittest.TestCase):
 
