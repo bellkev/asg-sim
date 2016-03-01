@@ -19,12 +19,12 @@ def sec_per_tick(*times):
 
 def generate_jobs(path):
 
-    jobs_per_batch = 1000
+    jobs_per_batch = 100
     up_down_range = [1, 2, 4, 8, 16, 32]
 
     # Whee! List comprehension!
     jobs = [{'autoscale': True,
-             'trials': 10,
+             'trials': 5,
              'build_run_time': build_time,
              'builds_per_hour': traffic,
              'builder_boot_time': boot_time,
@@ -54,12 +54,12 @@ def generate_jobs(path):
     for batch in range(batch_count):
         start = batch * jobs_per_batch
         end = start + jobs_per_batch
-        jobs = jobs[start:end]
+        batch_jobs = jobs[start:end]
         in_dir = os.path.join(path, 'input')
         if not os.path.isdir(in_dir):
             os.mkdir(in_dir)
         with open(os.path.join(in_dir, '%04d' % batch), 'w') as batch_file:
-            json.dump(jobs, batch_file)
+            json.dump(batch_jobs, batch_file)
 
 
 def run_batch(path, batch_name):
@@ -75,7 +75,7 @@ def run_batch(path, batch_name):
         os.mkdir(out_dir)
     with open(os.path.join(in_dir, batch_name), 'r') as in_file:
         batch_jobs = json.load(in_file)
-    p = Pool(8)
+    p = Pool(6)
     results = p.map(run_job, batch_jobs)
     with open(out_file_path, 'w') as out_file:
         json.dump(results, out_file)

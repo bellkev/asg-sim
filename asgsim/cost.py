@@ -20,7 +20,7 @@ def _run_job(trials=None, **opts):
                 'output': extract_output(run_model(opts))}
 
 def run_job(opts):
-    _run_job(**opts)
+   return  _run_job(**opts)
 
 def cost_from_job_results(results):
     opts = results['input']
