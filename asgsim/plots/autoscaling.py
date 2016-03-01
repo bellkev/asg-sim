@@ -77,7 +77,11 @@ def run_batch(path, batch_name, procs=6):
     with open(os.path.join(in_dir, batch_name), 'r') as in_file:
         batch_jobs = json.load(in_file)
     p = Pool(procs)
-    results = p.map(run_job, batch_jobs)
+    try:
+        results = p.map(run_job, batch_jobs)
+    finally:
+        p.close()
+        p.join()
     with open(out_file_path, 'w') as out_file:
         json.dump(results, out_file)
 
