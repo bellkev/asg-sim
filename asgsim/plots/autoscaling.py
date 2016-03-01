@@ -1,5 +1,6 @@
-import os
 import json
+import os
+import sys
 from multiprocessing import Pool
 
 from ..cost import cost, run_job
@@ -62,7 +63,7 @@ def generate_jobs(path):
             json.dump(batch_jobs, batch_file)
 
 
-def run_batch(path, batch_name):
+def run_batch(path, batch_name, procs=6):
     in_dir = os.path.join(path, 'input')
     out_dir = os.path.join(path, 'output')
     out_file_path = os.path.join(out_dir, batch_name)
@@ -75,17 +76,33 @@ def run_batch(path, batch_name):
         os.mkdir(out_dir)
     with open(os.path.join(in_dir, batch_name), 'r') as in_file:
         batch_jobs = json.load(in_file)
-    p = Pool(6)
+    p = Pool(procs)
     results = p.map(run_job, batch_jobs)
     with open(out_file_path, 'w') as out_file:
         json.dump(results, out_file)
 
 
-def run_batches(path):
+def run_batches(path, **kwargs):
     for batch_name in sorted(os.listdir(os.path.join(path, 'input'))):
-        run_batch(path, batch_name)
+        run_batch(path, batch_name, **kwargs)
 
 
 if __name__ == '__main__':
-    generate_jobs('jobs')
-    run_batches('jobs')
+    usage = 'Usage: python -m asgsim.plots.autoscaling <generate|run> path [procs]'
+    if len(sys.argv) < 3:
+        print usage
+        exit(1)
+    task = sys.argv[1]
+    path = sys.argv[2]
+    procs = 6
+    if len(sys.argv) == 4:
+        procs = int(sys.argv[3])
+    if sys.argv[1] == 'generate':
+        print 'Generating jobs in', path
+        generate_jobs(sys.argv[2])
+    elif sys.argv[1] == 'run':
+        print 'Running jobs in %s with %d processes' % (path, procs)
+        run_batches(sys.argv[2], procs=procs)
+    else:
+        print usage
+        exit(1)
