@@ -5,8 +5,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from numpy import mean
 
-from .cost import cost
-from .model import run_model
+from ..cost import cost
+from ..model import run_model
 
 
 def make_resolution_plot(resolution):
@@ -205,17 +205,6 @@ def make_optimum_build_time_plot():
     plt.legend(handles=[m_handle, u_handle])
     plt.savefig('plots/optimum_props_by_build_time')
     plt.close()
-
-# def asg_cost():
-    # build_time_traffics = [(300, 10.0), (300, 50.0), (60, 50.0), (120, 50.0), (600, 50.0), (1200, 50.0)]
-    # boot_times = [10, 30, 60, 120, 300, 600, 1200]
-    # alarm_period_durations = [10, 60, 300]
-    # alarm_period_counts = [1, 2, 4]
-    # scale_up_down_thresholds = [(1, 1), (1, 2), (1, 4), (1, 8), (1, 16), (1, 32), (2, 2), (2, 4),
-    #                             (2, 8), (2, 16), (2, 32), (4, 4), (4, 8), (4, 16), (4, 32), (8, 8),
-    #                             (8, 16), (8, 32), (16, 16), (16, 32), (32, 32)]
-    # scale_up_changes = [1, 2, 4]
-    # scale_down_changes = [1, 2, 4]
 
 
 if __name__ == '__main__':

@@ -4,13 +4,23 @@ from multiprocessing import Pool
 from .model import run_model
 
 
+def extract_output(model):
+    return {'mean_queue_time': model.mean_queue_time(),
+            'mean_unused_builders': model.mean_unused_builders()}
+
+
+def _run_job(trials=None, **opts):
+    if trials:
+        output = []
+        for t in range(trials):
+            output.append(extract_output(run_model(**opts)))
+        return {'input': opts, 'output': output}
+    else:
+        return {'input': opts,
+                'output': extract_output(run_model(opts))}
 
 def run_job(opts):
-    m = run_model(**opts)
-    return {'input': opts,
-            'output': {'mean_queue_time': m.mean_queue_time(),
-                       'mean_unused_builders': m.mean_unused_builders()}}
-
+    _run_job(**opts)
 
 def cost_from_job_results(results):
     opts = results['input']
