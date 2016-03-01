@@ -19,8 +19,10 @@ def _run_job(trials=None, **opts):
         return {'input': opts,
                 'output': extract_output(run_model(opts))}
 
+
 def run_job(opts):
    return  _run_job(**opts)
+
 
 def cost_from_job_results(results):
     opts = results['input']
@@ -39,6 +41,7 @@ def cost_from_job_results(results):
 
     return simulation_time_hours * (mean_unused_builders * cost_per_builder_hour
                                     + builds_per_hour * mean_queue_time / 3600.0 * adjusted_cost_per_dev_hour)
+
 
 def cost(opts):
     results = run_job(opts)
