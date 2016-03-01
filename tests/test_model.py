@@ -12,6 +12,7 @@ def test_utilization():
     assert m.mean_percent_utilization() == 12.5
     assert m.mean_unused_builders() == 1.75
 
+
 def test_scale_up():
     m = Model(build_run_time=50, builder_boot_time=100,
               builds_per_hour=0.0, sec_per_tick=10,
@@ -33,6 +34,7 @@ def test_scale_up():
     m.advance(11)
     assert len(m.builders) == 6
 
+
 def test_graceful_shutdown():
     m = Model(build_run_time=10, builder_boot_time=0,
               builds_per_hour=0.0, sec_per_tick=1,
@@ -45,6 +47,7 @@ def test_graceful_shutdown():
     assert len(m.builders) == 0
     finished = m.finished_builds[0]
     assert (finished.finished_time - finished.started_time) == m.build_run_time
+
 
 def test_scale_down():
     m = Model(build_run_time=50, builder_boot_time=0,
@@ -67,9 +70,20 @@ def test_scale_down():
     m.advance(60)
     assert len(m.builders) == 8
 
+
+def test_build_throughput():
+    m = Model(builds_per_hour=0.0, build_run_time=10, sec_per_tick=1,
+              initial_builder_count=1, builder_boot_time=0)
+    builds = [Build(m.ticks, m.build_run_time), Build(m.ticks, m.build_run_time)]
+    m.build_queue.extend(builds)
+    m.advance(20)
+    assert (builds[1].started_time - builds[1].queued_time) == m.build_run_time
+
+
 def test_run_model():
     m = run_model(ticks=100)
     assert m.ticks == 100
+
 
 class TestBuilder(unittest.TestCase):
 
@@ -151,8 +165,10 @@ class TestAlarm(unittest.TestCase):
 
 
 class TestScalingPolicy(unittest.TestCase):
+
     def setUp(self):
         self.policy = ScalingPolicy(2, 5)
+
     def test_cooldown(self):
         assert self.policy.maybe_scale(4) == 0
         assert self.policy.maybe_scale(5) == 2

@@ -178,7 +178,7 @@ class Model(object):
         return mean([float(u) / float(t) for u, t in zip(self.builders_in_use, self.builders_total)]) * 100.0
 
     def mean_unused_builders(self):
-        return mean([float(t) - float(u) for u, t in zip(self.builders_in_use, self.builders_total)])
+        return mean([t - u for u, t in zip(self.builders_in_use, self.builders_total)])
 
     def boot_builders(self, count):
         for b in range(count):
@@ -237,11 +237,12 @@ class Model(object):
     def advance(self, ticks):
         for i in range(ticks):
             self.queue_builds()
+            # finish eagerly to maximize throughput
             self.finish_builds()
             self.start_builds()
-            self.update_metrics()
             if self.autoscale:
                 self.scale()
+            self.update_metrics()
             self.power_off_builders()
             self.ticks += 1
 
