@@ -41,17 +41,21 @@ def generate_jobs(jobs, path):
             json.dump(batch_jobs, batch_file)
 
 
-def generate_static_jobs(path):
+def static_jobs(path):
     jobs = [{'autoscale': False,
-             'trials': 20,
+             'trials': 1000,
              'build_run_time': build_time,
              'builds_per_hour': traffic,
              'initial_builder_count': initial}
             for build_time, traffic, initial in STATIC_MINIMA]
-    generate_jobs(jobs, path)
+    return jobs
 
 
-def generate_autoscaling_jobs(path):
+def generate_static_jobs(path):
+    generate_jobs(static_jobs(), path)
+
+
+def autoscaling_jobs():
     up_down_range = [1, 2, 4, 8, 16, 32]
     # Whee! List comprehension!
     jobs = [{'autoscale': True,
@@ -75,7 +79,11 @@ def generate_autoscaling_jobs(path):
             for up_threshold, down_threshold in [(up, down) for up in up_down_range for down in up_down_range if up <= down]
             for scale_up_change in [1, 2, 4]
             for scale_down_change in [1, 2, 4]]
-    generate_jobs(jobs, path)
+    return jobs
+
+
+def generate_autoscaling_jobs():
+    generate_jobs(auto_scaling_jobs(), path)
 
 
 def run_batch(path, batch_name, procs=6):
@@ -104,6 +112,18 @@ def run_batch(path, batch_name, procs=6):
 def run_batches(path, **kwargs):
     for batch_name in sorted(os.listdir(os.path.join(path, 'input'))):
         run_batch(path, batch_name, **kwargs)
+
+
+def load_results(path):
+    output_path = os.path.join(path, 'output')
+    batch_names = sorted(os.listdir(output_path))
+    results = []
+    for batch_name in batch_names:
+        batch_results_path = os.path.join(output_path, batch_name)
+        with open(batch_results_path, 'r') as batch_results_file:
+            batch_results = json.load(batch_results_file)
+            results.extend(batch_results)
+    return results
 
 
 if __name__ == '__main__':

@@ -71,7 +71,6 @@ def cost_ci(results, percent=95):
     """
     assert len(results) > 1
     costs = cost_from_job_results(results)
-    print costs
     z = {95: 1.96, 99: 2.58, 99.5: 2.81, 99.9: 3.29} # http://mathworld.wolfram.com/StandardDeviation.html
     m = mean(costs)
     s = std(costs)
