@@ -111,7 +111,8 @@ class Model(object):
     """
 
     _defaults = dict(builds_per_hour=10.0, build_run_time=300, initial_builder_count=1,
-                     builder_boot_time=300, sec_per_tick=10, autoscale=False)
+                     builder_boot_time=300, sec_per_tick=10, autoscale=False,
+                     initial_build_count=0)
 
     def __init__(self, **kwargs):
 
@@ -151,6 +152,10 @@ class Model(object):
 
         # Boot initial builders
         self.boot_builders(self.initial_builder_count)
+
+        # Load initial builds (for testing)
+        for build in range(self.initial_build_count):
+            self.build_queue.append(Build(self.ticks, self.build_run_time_ticks))
 
     def theoretical_queue_time(self):
         """

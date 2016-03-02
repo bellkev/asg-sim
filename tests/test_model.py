@@ -80,6 +80,14 @@ def test_build_throughput():
     assert (builds[1].started_time - builds[1].queued_time) == m.build_run_time
 
 
+def test_builds_per_hour():
+    # This test is not deterministic, but random fails should be extremely rare
+    m = run_model(ticks=3600, builds_per_hour=100.0, build_run_time=10, sec_per_tick=10,
+                  initial_builder_count=100, builder_boot_time=0)
+    assert 900 < len(m.finished_builds) < 1100
+
+
+
 def test_run_model():
     m = run_model(ticks=100)
     assert m.ticks == 100

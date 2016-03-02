@@ -17,7 +17,7 @@ def _run_job(trials=None, **opts):
         return {'input': opts, 'output': output}
     else:
         return {'input': opts,
-                'output': extract_output(run_model(opts))}
+                'output': extract_output(run_model(**opts))}
 
 
 def run_job(opts):
@@ -26,8 +26,7 @@ def run_job(opts):
 
 def cost_from_job_results(results):
     opts = results['input']
-    mean_queue_time = results['output']['mean_queue_time']
-    mean_unused_builders = results['output']['mean_unused_builders']
+    output = results['output']
 
     # Cost parameters
     sec_per_tick = opts['sec_per_tick']
@@ -39,8 +38,16 @@ def cost_from_job_results(results):
     ticks = opts['ticks']
     simulation_time_hours = ticks * sec_per_tick / 3600.0
 
-    return simulation_time_hours * (mean_unused_builders * cost_per_builder_hour
-                                    + builds_per_hour * mean_queue_time / 3600.0 * adjusted_cost_per_dev_hour)
+    def cost_of_output(output):
+        cost_per_hour = (output['mean_unused_builders'] * cost_per_builder_hour
+                         + builds_per_hour * output['mean_queue_time'] / 3600.0 * adjusted_cost_per_dev_hour)
+        return simulation_time_hours * cost_per_hour
+
+    if type(output) == list:
+        return map(cost_of_output, output)
+    else:
+        return cost_of_output(output)
+
 
 
 def cost(opts):
