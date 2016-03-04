@@ -101,8 +101,27 @@ class Model(object):
     """
     A simplified model of a CircleCI Enterprise builder ASG.
 
-    builds_per_hour is a float of builds/hour
-    build_run_time and builder_boot_time are integer numbers of seconds
+    Available parameters:
+
+    (all times are integer numbers of seconds unless noted otherwise)
+
+    build_run_time: execution time of every build
+    builder_boot_time: boot time of builders (except initial builders)
+    builds_per_hour: float of average builds/hour
+    initial_builder_count: number of builders to boot instantly at start
+    sec_per_tick: number of seconds per "tick" on the model clock
+    ticks: number of "ticks" (cycles) to run the model
+    autoscale: boolean that enables autoscaling and supports these additional params:
+        alarm_period_duration: duration of one (CloudWatch-style) alarm period
+        scale_down_alarm_period_count: number of alarm periods metric must be over threshold
+                                       before scale down alarm goes off
+        scale_down_change: number of instances to turn off for each scale-down event
+        scale_down_threshold: number of available instances above which scale-down events fire
+        scale_down_alarm_period_count: number of alarm periods metric must be under threshold
+                                       before scale down alarm goes off
+        scale_up_change: number of instances to start for each scale-up event
+        scale_up_threshold: number of available instances below which scale-up events fire
+
 
     Current significant simplifications are:
     - No containers: Only one build at a time per builder
