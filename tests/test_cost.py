@@ -1,5 +1,5 @@
 import asgsim.cost
-from asgsim.cost import cost, cost_ci, compare_cis, compare_results
+from asgsim.cost import cost_from_job_results, cost, cost_ci, compare_cis, compare_results
 
 
 def test_cost_machines():
@@ -17,7 +17,6 @@ def test_cost_machines():
 
 
 def test_cost_queueing():
-    # TODO: Look into using total queued time to compute cost
     cost_per_builder_hour = 0.12 # m4.large on-demand price
     measured = cost({'builder_boot_time': 0,
                      'builds_per_hour': 1.0,
@@ -27,9 +26,23 @@ def test_cost_queueing():
                      'sec_per_tick': 3600,
                      'ticks': 4})
     # 3 builds will finish, no free machines, queue times are 0, 1, 2 hrs
-    mean_queue_time = (0 + 1 + 2) / 3.0
-    expected = asgsim.cost.COST_PER_DEV_HOUR * mean_queue_time * 4
+    total_queue_time = 0 + 1 + 2
+    expected = asgsim.cost.COST_PER_DEV_HOUR * total_queue_time
     assert measured == expected
+
+
+def test_cost_from_job_results_mean():
+    results = {'input': {'sec_per_tick': 3600, 'builds_per_hour': 1, 'ticks': 1},
+               'output': {'mean_queue_time': 3600, 'mean_unused_builders': 1}}
+    expected = asgsim.cost.COST_PER_BUILDER_HOUR + asgsim.cost.COST_PER_DEV_HOUR
+    assert cost_from_job_results(results) == expected
+
+
+def test_cost_from_job_results_total():
+    results = {'input': {'sec_per_tick': 3600,  'ticks': 1},
+               'output': {'total_queue_time': 3600, 'mean_unused_builders': 1}}
+    expected = asgsim.cost.COST_PER_BUILDER_HOUR + asgsim.cost.COST_PER_DEV_HOUR
+    assert cost_from_job_results(results) == expected
 
 
 def test_cost_ci():

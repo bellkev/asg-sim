@@ -179,6 +179,9 @@ class Model(object):
     def mean_queue_time(self):
         return mean(self.queue_times())
 
+    def total_queue_time(self):
+        return sum(self.queue_times())
+
     def percentile_queue_time(self, ptile):
         return percentile(self.queue_times(), ptile)
 

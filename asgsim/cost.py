@@ -16,20 +16,11 @@ COST_PER_BUILDER_HOUR = 0.12
 #COST_PER_BUILDER_HOUR = 4.698
 
 
-def extract_output(model):
-    return {'mean_queue_time': model.mean_queue_time(),
-            'mean_unused_builders': model.mean_unused_builders()}
-
-
-def _run_job(trials=None, **opts):
-    if trials:
-        output = []
-        for t in range(trials):
-            output.append(extract_output(run_model(**opts)))
-        return {'input': opts, 'output': output}
-    else:
-        return {'input': opts,
-                'output': extract_output(run_model(**opts))}
+def _run_job(trials=1, **opts):
+    return {'input': opts,
+             'output': [{'total_queue_time': model.total_queue_time(),
+                         'mean_unused_builders': model.mean_unused_builders()}
+                        for model in [run_model(**opts) for t in range(trials)]]}
 
 
 def run_job(opts):
@@ -37,23 +28,34 @@ def run_job(opts):
 
 
 def cost_from_job_results(results):
+    """
+    Returns a scalar cost for a single-run job, or a list
+    of costs for a job with multiple trials.
+    """
     opts = results['input']
     output = results['output']
-
+    if isinstance(output, list):
+        output_sample = output[0]
+    else:
+        output_sample = output
     # Cost parameters
     sec_per_tick = opts['sec_per_tick']
     cost_per_dev_hour = 100 # a reasonably average contractor rate
     adjusted_cost_per_dev_hour = cost_per_dev_hour * 2 # adjust for a bit of a "concentration loss factor"
-    builds_per_hour = opts['builds_per_hour']
     ticks = opts['ticks']
     simulation_time_hours = ticks * sec_per_tick / 3600.0
-
-    def cost_of_output(output):
-        cost_per_hour = (output['mean_unused_builders'] * COST_PER_BUILDER_HOUR
-                         + builds_per_hour * output['mean_queue_time'] / 3600.0 * COST_PER_DEV_HOUR)
-        return simulation_time_hours * cost_per_hour
-
-    if type(output) == list:
+    # Prefer to use total queue time directly, but support older format
+    if 'total_queue_time' in output_sample.keys():
+        def cost_of_output(output):
+            builder_cost = output['mean_unused_builders'] * COST_PER_BUILDER_HOUR * simulation_time_hours
+            queue_cost = output['total_queue_time'] / 3600.0 * COST_PER_DEV_HOUR
+            return builder_cost + queue_cost
+    else:
+        def cost_of_output(output):
+            cost_per_hour = (output['mean_unused_builders'] * COST_PER_BUILDER_HOUR
+                         + opts['builds_per_hour'] * output['mean_queue_time'] / 3600.0 * COST_PER_DEV_HOUR)
+            return simulation_time_hours * cost_per_hour
+    if isinstance(output, list):
         return map(cost_of_output, output)
     else:
         return cost_of_output(output)
@@ -61,7 +63,11 @@ def cost_from_job_results(results):
 
 def cost(opts):
     results = run_job(opts)
-    return cost_from_job_results(results)
+    costs = cost_from_job_results(results)
+    if len(costs) == 1:
+        return costs[0]
+    else:
+        return costs
 
 
 def cost_ci(results, percent=95):
