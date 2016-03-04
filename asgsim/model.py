@@ -146,8 +146,8 @@ class Model(object):
             self.scale_up_policy = ScalingPolicy(self.scale_up_change, self.builder_boot_time_ticks + self.alarm_period_duration_ticks)
             self.scale_down_policy = ScalingPolicy(self.scale_down_change, self.build_run_time_ticks + self.alarm_period_duration_ticks)
 
-        # Boot initial builders
-        self.boot_builders(self.initial_builder_count)
+        # Boot initial builders instantly
+        self.boot_builders(self.initial_builder_count, instantly=True)
 
         # Load initial builds (for testing)
         for build in range(self.initial_build_count):
@@ -181,9 +181,13 @@ class Model(object):
     def mean_unused_builders(self):
         return mean([t - u for u, t in zip(self.builders_in_use, self.builders_total)])
 
-    def boot_builders(self, count):
+    def boot_builders(self, count, instantly=False):
+        if instantly:
+            boot_time = 0
+        else:
+            boot_time = self.builder_boot_time_ticks
         for b in range(count):
-            self.builders.add(Builder(self.ticks, self.builder_boot_time_ticks))
+            self.builders.add(Builder(self.ticks, boot_time))
 
     def shutdown_builders(self, count):
         shutdown = 0

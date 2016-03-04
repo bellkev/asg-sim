@@ -87,6 +87,11 @@ def test_builds_per_hour():
     assert 900 < len(m.finished_builds) < 1100
 
 
+def test_initial_boot():
+    m = run_model(ticks=50, builds_per_hour=0.0, sec_per_tick=1,
+                  initial_builder_count=1, builder_boot_time=100)
+    assert m.builders.pop().available(m.ticks) == True
+
 
 def test_run_model():
     m = run_model(ticks=100)
