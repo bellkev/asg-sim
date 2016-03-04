@@ -17,7 +17,8 @@ def test_scale_up():
     m = Model(build_run_time=50, builder_boot_time=100,
               builds_per_hour=0.0, sec_per_tick=10,
               initial_builder_count=2, autoscale=True,
-              alarm_period_duration=10, alarm_period_count=3,
+              alarm_period_duration=10, scale_up_alarm_period_count=3,
+              scale_down_alarm_period_count=1000,
               scale_up_threshold=5, scale_up_change=2,
               scale_down_threshold=8, scale_down_change=1)
     assert len(m.builders) == 2
@@ -53,7 +54,8 @@ def test_scale_down():
     m = Model(build_run_time=50, builder_boot_time=0,
               builds_per_hour=0.0, sec_per_tick=1,
               initial_builder_count=10, autoscale=True,
-              alarm_period_duration=10, alarm_period_count=3,
+              alarm_period_duration=10, scale_up_alarm_period_count=1000,
+              scale_down_alarm_period_count=3,
               scale_up_threshold=5, scale_up_change=2,
               scale_down_threshold=8, scale_down_change=1)
     assert len(m.builders) == 10

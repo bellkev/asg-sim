@@ -145,11 +145,11 @@ class Model(object):
             self.scale_up_alarm = Alarm(self.builders_available,
                                         self.scale_up_threshold, Alarm.LT,
                                         self.alarm_period_duration_ticks,
-                                        self.alarm_period_count)
+                                        self.scale_up_alarm_period_count)
             self.scale_down_alarm = Alarm(self.builders_available,
                                         self.scale_down_threshold, Alarm.GT,
                                         self.alarm_period_duration_ticks,
-                                        self.alarm_period_count)
+                                        self.scale_down_alarm_period_count)
             self.scale_up_policy = ScalingPolicy(self.scale_up_change, self.builder_boot_time_ticks + self.alarm_period_duration_ticks)
             self.scale_down_policy = ScalingPolicy(self.scale_down_change, self.build_run_time_ticks + self.alarm_period_duration_ticks)
 
