@@ -1,7 +1,14 @@
 from collections import deque
 
-from numpy import mean, percentile
+from numpy import percentile
 from numpy.random import poisson
+
+
+# Seems to perform better than numpy.mean for averaging
+# small list slices in Alarm, even if they are collected
+# in numpy.arrays from the start
+def mean(l):
+    return sum(l) / float(len(l))
 
 
 class ScalingPolicy(object):
