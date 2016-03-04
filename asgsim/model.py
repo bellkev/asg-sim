@@ -37,22 +37,18 @@ class Alarm(object):
 
     def __init__(self, metric, threshold, comparison, period_duration, period_count):
         self.metric = metric
+        self.averages = []
         self.threshold = threshold
         self.comparison = comparison
         self.period_duration = period_duration # in "ticks"
         self.period_count = period_count
 
     def averaged_metric(self):
-        length = len(self.metric)
-        slice_end = length - (length % self.period_duration)
-        slice_start = slice_end - self.period_duration * self.period_count
-        unaveraged = self.metric[slice_start:slice_end]
-        averaged = []
-        for period in range(self.period_count):
-            period_start = period * self.period_duration
-            period_end = period_start + self.period_duration
-            averaged.append(mean(unaveraged[period_start:period_end]))
-        return averaged
+        while len(self.averages) < len(self.metric) / self.period_duration:
+            start = len(self.averages) * self.period_duration
+            end = start + self.period_duration
+            self.averages.append(mean(self.metric[start:end]))
+        return self.averages[-self.period_count:]
 
     def value_not_ok(self, value):
         if self.comparison == self.LT:

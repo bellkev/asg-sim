@@ -142,9 +142,11 @@ class TestAlarm(unittest.TestCase):
         self.metric.extend([6,6,6,6,6,6,6,1])
         assert self.alarm.state() == Alarm.OK
 
-    def test_comparisons(self):
+    def test_comparisons_GT(self):
         self.alarm.metric = [6,6,6]
         assert self.alarm.state() == Alarm.ALARM
+
+    def test_comparisons_LT(self):
         self.alarm.comparison = Alarm.LT
         self.alarm.metric = [4,4,4]
         assert self.alarm.state() == Alarm.ALARM
