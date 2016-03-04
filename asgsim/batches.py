@@ -15,6 +15,13 @@ STATIC_MINIMA = [(300, 10.0, 5), (300, 50.0, 12), (300, 200.0, 31),
                  (60, 50.0, 5), (120, 50.0, 7), (600, 50.0, 19), (1200, 50.0, 31)]
 
 
+def static_fleet_size(build_time, traffic):
+    return [minimum[2] for minimum in STATIC_MINIMA if minimum[0] == build_time and minimum[1] == traffic][0]
+
+
+def valid_threshold(build_time, traffic, up, down):
+    return up <= down <= (static_fleet_size(build_time, traffic) + 1)
+
 def sec_per_tick(*times):
     if any(map(lambda t: t < (LOW_RESOLUTION * 2), times)):
         return HIGH_RESOLUTION
@@ -56,7 +63,9 @@ def generate_static_jobs(path):
 
 
 def autoscaling_jobs():
-    up_down_range = [1, 2, 4, 8, 16, 32]
+    up_down_range = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32]
+    alarm_count_range = [1, 2, 4]
+    change_range = [1, 2, 4]
     # Whee! List comprehension!
     jobs = [{'autoscale': True,
              'trials': 5,
@@ -65,20 +74,22 @@ def autoscaling_jobs():
              'builder_boot_time': boot_time,
              'initial_builder_count': initial,
              'alarm_period_duration': alarm_period_duration,
-             'alarm_period_count': alarm_period_count,
+             'up_alarm_period_count': up_alarm_count,
+             'down_alarm_period_count': down_alarm_count,
              'scale_up_threshold': up_threshold,
              'scale_down_threshold': down_threshold,
              'scale_up_change': scale_up_change,
              'scale_down_change': scale_down_change}
             # Start at optimum static fleet sizes
             for build_time, traffic, initial in STATIC_MINIMA
-            for boot_time in [10, 30, 60, 120, 300, 600, 1200]
-            for alarm_period_duration in [10, 60, 300]
-            for alarm_period_count in [1, 2, 4]
+            for boot_time in [60, 120, 300, 600]
+            for alarm_period_duration in [60, 300]
+            for up_alarm_count in alarm_count_range
+            for down_alarm_count in alarm_count_range
             # Assume it's silly for scale_up_threshold > scale_down_threshold
-            for up_threshold, down_threshold in [(up, down) for up in up_down_range for down in up_down_range if up <= down]
-            for scale_up_change in [1, 2, 4]
-            for scale_down_change in [1, 2, 4]]
+            for up_threshold, down_threshold in [(up, down) for up in up_down_range for down in up_down_range if valid_threshold(build_time, traffic, up, down)]
+            for scale_up_change in change_range
+            for scale_down_change in change_range]
     return jobs
 
 
