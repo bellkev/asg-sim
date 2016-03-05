@@ -3,7 +3,6 @@ from asgsim.cost import cost_from_job_results, cost, cost_ci, compare_cis, compa
 
 
 def test_cost_machines():
-    cost_per_builder_hour = 0.12 # m4.large on-demand price
     measured = cost({'builder_boot_time': 0,
                      'builds_per_hour': 0.0,
                      'initial_build_count': 1,
@@ -16,8 +15,21 @@ def test_cost_machines():
     assert measured == expected
 
 
+def test_cost_per_builder_hour_override():
+    measured = cost({'builder_boot_time': 0,
+                     'builds_per_hour': 0.0,
+                     'initial_build_count': 1,
+                     'build_run_time': 3600,
+                     'initial_builder_count': 1,
+                     'sec_per_tick': 3600,
+                     'ticks': 10},
+                    cost_per_builder_hour=asgsim.cost.COST_PER_BUILDER_HOUR_EXPENSIVE)
+    # build running for one cycle, zero queue time
+    expected = asgsim.cost.COST_PER_BUILDER_HOUR_EXPENSIVE * 9
+    assert measured == expected
+
+
 def test_cost_queueing():
-    cost_per_builder_hour = 0.12 # m4.large on-demand price
     measured = cost({'builder_boot_time': 0,
                      'builds_per_hour': 1.0,
                      'initial_build_count': 10,

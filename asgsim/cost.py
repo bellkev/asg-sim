@@ -13,7 +13,7 @@ COST_PER_DEV_HOUR = 200
 # m4.large on-demand price
 COST_PER_BUILDER_HOUR = 0.12
 # 2x m4.10xl on-demand price
-#COST_PER_BUILDER_HOUR = 4.698
+COST_PER_BUILDER_HOUR_EXPENSIVE = 4.698
 
 
 def _run_job(trials=1, **opts):
@@ -27,7 +27,7 @@ def run_job(opts):
    return  _run_job(**opts)
 
 
-def cost_from_job_results(results):
+def cost_from_job_results(results, cost_per_builder_hour=COST_PER_BUILDER_HOUR):
     """
     Returns a scalar cost for a single-run job, or a list
     of costs for a job with multiple trials.
@@ -47,12 +47,12 @@ def cost_from_job_results(results):
     # Prefer to use total queue time directly, but support older format
     if 'total_queue_time' in output_sample.keys():
         def cost_of_output(output):
-            builder_cost = output['mean_unused_builders'] * COST_PER_BUILDER_HOUR * simulation_time_hours
+            builder_cost = output['mean_unused_builders'] * cost_per_builder_hour * simulation_time_hours
             queue_cost = output['total_queue_time'] / 3600.0 * COST_PER_DEV_HOUR
             return builder_cost + queue_cost
     else:
         def cost_of_output(output):
-            cost_per_hour = (output['mean_unused_builders'] * COST_PER_BUILDER_HOUR
+            cost_per_hour = (output['mean_unused_builders'] * cost_per_builder_hour
                          + opts['builds_per_hour'] * output['mean_queue_time'] / 3600.0 * COST_PER_DEV_HOUR)
             return simulation_time_hours * cost_per_hour
     if isinstance(output, list):
@@ -61,9 +61,9 @@ def cost_from_job_results(results):
         return cost_of_output(output)
 
 
-def cost(opts):
+def cost(opts, **kwargs):
     results = run_job(opts)
-    costs = cost_from_job_results(results)
+    costs = cost_from_job_results(results, **kwargs)
     if len(costs) == 1:
         return costs[0]
     else:
