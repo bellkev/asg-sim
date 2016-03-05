@@ -4,12 +4,12 @@ from asgsim.cost import costs_from_job_results, costs, cost_ci, compare_cis, com
 
 def test_cost_machines():
     measured = costs({'builder_boot_time': 0,
-                     'builds_per_hour': 0.0,
-                     'initial_build_count': 1,
-                     'build_run_time': 3600,
-                     'initial_builder_count': 1,
-                     'sec_per_tick': 3600,
-                     'ticks': 10})[0]
+                      'builds_per_hour': 0.0,
+                      'initial_build_count': 1,
+                      'build_run_time': 3600,
+                      'initial_builder_count': 1,
+                      'sec_per_tick': 3600,
+                      'ticks': 10})[0]
     # build running for one cycle, zero queue time
     expected = asgsim.cost.COST_PER_BUILDER_HOUR * 9
     assert measured == expected
@@ -17,13 +17,14 @@ def test_cost_machines():
 
 def test_cost_per_builder_hour_override():
     measured = costs({'builder_boot_time': 0,
-                     'builds_per_hour': 0.0,
-                     'initial_build_count': 1,
-                     'build_run_time': 3600,
-                     'initial_builder_count': 1,
-                     'sec_per_tick': 3600,
-                     'ticks': 10},
-                    cost_per_builder_hour=asgsim.cost.COST_PER_BUILDER_HOUR_EXPENSIVE)[0]
+                      'builds_per_hour': 0.0,
+                      'initial_build_count': 1,
+                      'build_run_time': 3600,
+                      'initial_builder_count': 1,
+                      'sec_per_tick': 3600,
+                      'ticks': 10,
+                      'cost_per_builder_hour':
+                      asgsim.cost.COST_PER_BUILDER_HOUR_EXPENSIVE})[0]
     # build running for one cycle, zero queue time
     expected = asgsim.cost.COST_PER_BUILDER_HOUR_EXPENSIVE * 9
     assert measured == expected
@@ -31,12 +32,12 @@ def test_cost_per_builder_hour_override():
 
 def test_cost_queueing():
     measured = costs({'builder_boot_time': 0,
-                     'builds_per_hour': 1.0,
-                     'initial_build_count': 10,
-                     'build_run_time': 3600,
-                     'initial_builder_count': 1,
-                     'sec_per_tick': 3600,
-                     'ticks': 4})[0]
+                      'builds_per_hour': 1.0,
+                      'initial_build_count': 10,
+                      'build_run_time': 3600,
+                      'initial_builder_count': 1,
+                      'sec_per_tick': 3600,
+                      'ticks': 4})[0]
     # 3 builds will finish, no free machines, queue times are 0, 1, 2 hrs
     total_queue_time = 0 + 1 + 2
     expected = asgsim.cost.COST_PER_DEV_HOUR * total_queue_time
