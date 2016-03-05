@@ -27,17 +27,13 @@ def run_job(opts):
    return  _run_job(**opts)
 
 
-def cost_from_job_results(results, cost_per_builder_hour=COST_PER_BUILDER_HOUR):
+def costs_from_job_results(results, cost_per_builder_hour=COST_PER_BUILDER_HOUR):
     """
     Returns a scalar cost for a single-run job, or a list
     of costs for a job with multiple trials.
     """
     opts = results['input']
     output = results['output']
-    if isinstance(output, list):
-        output_sample = output[0]
-    else:
-        output_sample = output
     # Cost parameters
     sec_per_tick = opts['sec_per_tick']
     cost_per_dev_hour = 100 # a reasonably average contractor rate
@@ -45,7 +41,7 @@ def cost_from_job_results(results, cost_per_builder_hour=COST_PER_BUILDER_HOUR):
     ticks = opts['ticks']
     simulation_time_hours = ticks * sec_per_tick / 3600.0
     # Prefer to use total queue time directly, but support older format
-    if 'total_queue_time' in output_sample.keys():
+    if 'total_queue_time' in output[0].keys():
         def cost_of_output(output):
             builder_cost = output['mean_unused_builders'] * cost_per_builder_hour * simulation_time_hours
             queue_cost = output['total_queue_time'] / 3600.0 * COST_PER_DEV_HOUR
@@ -55,19 +51,12 @@ def cost_from_job_results(results, cost_per_builder_hour=COST_PER_BUILDER_HOUR):
             cost_per_hour = (output['mean_unused_builders'] * cost_per_builder_hour
                          + opts['builds_per_hour'] * output['mean_queue_time'] / 3600.0 * COST_PER_DEV_HOUR)
             return simulation_time_hours * cost_per_hour
-    if isinstance(output, list):
-        return map(cost_of_output, output)
-    else:
-        return cost_of_output(output)
+    return map(cost_of_output, output)
 
 
-def cost(opts, **kwargs):
+def costs(opts, **kwargs):
     results = run_job(opts)
-    costs = cost_from_job_results(results, **kwargs)
-    if len(costs) == 1:
-        return costs[0]
-    else:
-        return costs
+    return costs_from_job_results(results, **kwargs)
 
 
 def cost_ci(results, percent=95):
@@ -76,7 +65,7 @@ def cost_ci(results, percent=95):
     assuming costs are normally distributed.
     """
     assert len(results) > 1
-    costs = cost_from_job_results(results)
+    costs = costs_from_job_results(results)
     z = {95: 1.96, 99: 2.58, 99.5: 2.81, 99.9: 3.29} # http://mathworld.wolfram.com/StandardDeviation.html
     m = mean(costs)
     s = std(costs)

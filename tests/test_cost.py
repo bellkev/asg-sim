@@ -1,60 +1,60 @@
 import asgsim.cost
-from asgsim.cost import cost_from_job_results, cost, cost_ci, compare_cis, compare_results
+from asgsim.cost import costs_from_job_results, costs, cost_ci, compare_cis, compare_results
 
 
 def test_cost_machines():
-    measured = cost({'builder_boot_time': 0,
+    measured = costs({'builder_boot_time': 0,
                      'builds_per_hour': 0.0,
                      'initial_build_count': 1,
                      'build_run_time': 3600,
                      'initial_builder_count': 1,
                      'sec_per_tick': 3600,
-                     'ticks': 10})
+                     'ticks': 10})[0]
     # build running for one cycle, zero queue time
     expected = asgsim.cost.COST_PER_BUILDER_HOUR * 9
     assert measured == expected
 
 
 def test_cost_per_builder_hour_override():
-    measured = cost({'builder_boot_time': 0,
+    measured = costs({'builder_boot_time': 0,
                      'builds_per_hour': 0.0,
                      'initial_build_count': 1,
                      'build_run_time': 3600,
                      'initial_builder_count': 1,
                      'sec_per_tick': 3600,
                      'ticks': 10},
-                    cost_per_builder_hour=asgsim.cost.COST_PER_BUILDER_HOUR_EXPENSIVE)
+                    cost_per_builder_hour=asgsim.cost.COST_PER_BUILDER_HOUR_EXPENSIVE)[0]
     # build running for one cycle, zero queue time
     expected = asgsim.cost.COST_PER_BUILDER_HOUR_EXPENSIVE * 9
     assert measured == expected
 
 
 def test_cost_queueing():
-    measured = cost({'builder_boot_time': 0,
+    measured = costs({'builder_boot_time': 0,
                      'builds_per_hour': 1.0,
                      'initial_build_count': 10,
                      'build_run_time': 3600,
                      'initial_builder_count': 1,
                      'sec_per_tick': 3600,
-                     'ticks': 4})
+                     'ticks': 4})[0]
     # 3 builds will finish, no free machines, queue times are 0, 1, 2 hrs
     total_queue_time = 0 + 1 + 2
     expected = asgsim.cost.COST_PER_DEV_HOUR * total_queue_time
     assert measured == expected
 
 
-def test_cost_from_job_results_mean():
+def test_costs_from_job_results_mean():
     results = {'input': {'sec_per_tick': 3600, 'builds_per_hour': 1, 'ticks': 1},
-               'output': {'mean_queue_time': 3600, 'mean_unused_builders': 1}}
+               'output': [{'mean_queue_time': 3600, 'mean_unused_builders': 1}]}
     expected = asgsim.cost.COST_PER_BUILDER_HOUR + asgsim.cost.COST_PER_DEV_HOUR
-    assert cost_from_job_results(results) == expected
+    assert costs_from_job_results(results)[0] == expected
 
 
-def test_cost_from_job_results_total():
+def test_costs_from_job_results_total():
     results = {'input': {'sec_per_tick': 3600,  'ticks': 1},
-               'output': {'total_queue_time': 3600, 'mean_unused_builders': 1}}
+               'output': [{'total_queue_time': 3600, 'mean_unused_builders': 1}]}
     expected = asgsim.cost.COST_PER_BUILDER_HOUR + asgsim.cost.COST_PER_DEV_HOUR
-    assert cost_from_job_results(results) == expected
+    assert costs_from_job_results(results)[0] == expected
 
 
 def test_cost_ci():
