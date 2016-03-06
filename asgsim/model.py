@@ -18,7 +18,7 @@ class ScalingPolicy(object):
     def __init__(self, change, cooldown):
         self.change = change
         # both last_fired_time and cooldown are in "ticks"
-        self.last_fired_time = 0
+        self.last_fired_time = -cooldown
         self.cooldown = cooldown
 
     def maybe_scale(self, time):

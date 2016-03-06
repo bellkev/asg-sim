@@ -22,13 +22,13 @@ def test_scale_up():
               scale_up_threshold=5, scale_up_change=2,
               scale_down_threshold=8, scale_down_change=1)
     assert len(m.builders) == 2
-    m.advance(11)
-    # No scaling during cooldown
-    # (ideal cooldown of builder_boot_time + alarm_period_duration)
+    m.advance(3)
+    # No scaling until alarm has enough data
     assert len(m.builders) == 2
     m.advance(1)
     assert len(m.builders) == 4
-    # One more scale to get to desired range
+    # Scale after one cooldown
+    # (ideal cooldown of builder_boot_time + alarm_period_duration)
     m.advance(11)
     assert len(m.builders) == 6
     # But no more
@@ -58,17 +58,14 @@ def test_scale_down():
               scale_down_alarm_period_count=3,
               scale_up_threshold=5, scale_up_change=2,
               scale_down_threshold=8, scale_down_change=1)
+    # opposite of test_scale_up
     assert len(m.builders) == 10
-    m.advance(60)
-    # No scaling during cooldown
-    # (ideal cooldown of build_run_time + alarm_period_duration)
+    m.advance(30)
     assert len(m.builders) == 10
     m.advance(1)
     assert len(m.builders) == 9
-    # One more scale to get to desired range
     m.advance(60)
     assert len(m.builders) == 8
-    # But no more
     m.advance(60)
     assert len(m.builders) == 8
 
@@ -187,7 +184,6 @@ class TestScalingPolicy(unittest.TestCase):
         self.policy = ScalingPolicy(2, 5)
 
     def test_cooldown(self):
+        assert self.policy.maybe_scale(0) == 2
         assert self.policy.maybe_scale(4) == 0
         assert self.policy.maybe_scale(5) == 2
-        assert self.policy.maybe_scale(7) == 0
-        assert self.policy.maybe_scale(10) == 2
