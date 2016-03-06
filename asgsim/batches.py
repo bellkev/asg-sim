@@ -3,7 +3,7 @@ import os
 import sys
 from multiprocessing import Pool
 
-from .cost import cost, run_job
+from .cost import run_job
 
 
 HIGH_RESOLUTION = 10
@@ -12,7 +12,11 @@ TRIAL_DURATION_SECS = 100000 # about a day
 
 # Determined from asgsim.plots.static methods
 STATIC_MINIMA = [(300, 10.0, 5), (300, 50.0, 12), (300, 200.0, 31),
-                 (60, 50.0, 5), (120, 50.0, 7), (600, 50.0, 19), (1200, 50.0, 31)]
+                 (60, 50.0, 5), (120, 50.0, 7), (600, 50.0, 19), (1200, 50.0, 31),
+                 (2400, 1.0, 5), (2400, 2.0, 6), (2400, 5.0, 10),
+                 (2400, 10.0, 17), (2400, 20.0, 26),
+                 (60, 2.0, 2), (120, 2.0, 2), (300, 2.0, 3),
+                 (600, 2.0, 3), (1200, 2.0, 5)]
 
 
 def static_fleet_size(build_time, traffic):
@@ -63,7 +67,7 @@ def generate_static_jobs(path):
 
 
 def autoscaling_jobs():
-    up_down_range = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32]
+    up_down_range = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32]
     alarm_count_range = [1, 2, 4]
     change_range = [1, 2, 4]
     # Whee! List comprehension!
