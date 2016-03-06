@@ -97,8 +97,8 @@ def autoscaling_jobs():
     return jobs
 
 
-def generate_autoscaling_jobs():
-    generate_jobs(auto_scaling_jobs(), path)
+def generate_autoscaling_jobs(path):
+    generate_jobs(autoscaling_jobs(), path)
 
 
 def run_batch(path, batch_name, procs=6):
