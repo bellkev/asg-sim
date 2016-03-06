@@ -52,7 +52,7 @@ def generate_jobs(jobs, path):
             json.dump(batch_jobs, batch_file)
 
 
-def static_jobs(path):
+def static_jobs():
     jobs = [{'autoscale': False,
              'trials': 1000,
              'build_run_time': build_time,
