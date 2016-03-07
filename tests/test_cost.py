@@ -1,5 +1,5 @@
 import asgsim.cost
-from asgsim.cost import costs_from_job_results, costs, cost_ci, compare_cis, compare_results
+from asgsim.cost import costs_from_job_results, costs, cost_ci, compare_cis, compare_result_cis, compare_result_means
 
 
 def test_cost_machines():
@@ -86,9 +86,11 @@ def test_compare_cis():
 
 def test_compare_results():
     bad = {'input': {'sec_per_tick': 3600, 'builds_per_hour': 1, 'ticks': 1},
-           'output': [{'mean_queue_time': 0, 'mean_unused_builders': 5000},
-                      {'mean_queue_time': 0, 'mean_unused_builders': 5000}]}
+           'output': [{'total_queue_time': 0, 'mean_unused_builders': 5000},
+                      {'total_queue_time': 0, 'mean_unused_builders': 5000}]}
     good = {'input': {'sec_per_tick': 3600, 'builds_per_hour': 1, 'ticks': 1},
-           'output': [{'mean_queue_time': 0, 'mean_unused_builders': 1},
-                      {'mean_queue_time': 0, 'mean_unused_builders': 1}]}
-    assert compare_results(good, bad) == 1
+           'output': [{'total_queue_time': 0, 'mean_unused_builders': 1},
+                      {'total_queue_time': 0, 'mean_unused_builders': 1}]}
+    assert compare_result_cis(good, bad) == 1
+    assert compare_result_means(good, bad) == 1
+    assert compare_result_means(good, bad, cost_per_builder_hour=0) == 0

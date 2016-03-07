@@ -91,7 +91,18 @@ def compare_cis(ci_a, ci_b):
         return 0
 
 
-def compare_results(a, b):
+def compare_result_cis(a, b):
     ci_a = cost_ci(a)
     ci_b = cost_ci(b)
     return compare_cis(ci_a, ci_b)
+
+
+def compare_result_means(a, b, **kwargs):
+    mean_a = mean(costs_from_job_results(a, **kwargs))
+    mean_b = mean(costs_from_job_results(b, **kwargs))
+    if mean_a < mean_b:
+        return 1
+    elif mean_b < mean_a:
+        return -1
+    else:
+        return 0
