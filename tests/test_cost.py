@@ -80,8 +80,8 @@ def test_compare_cis():
     ci_b = (4, 6)
     ci_c = (6, 9)
     assert compare_cis(ci_a, ci_b) == 0
-    assert compare_cis(ci_a, ci_c) == 1
-    assert compare_cis(ci_c, ci_a) == -1
+    assert compare_cis(ci_a, ci_c) == -1
+    assert compare_cis(ci_c, ci_a) == 1
 
 
 def test_compare_results():
@@ -91,6 +91,6 @@ def test_compare_results():
     good = {'input': {'sec_per_tick': 3600, 'builds_per_hour': 1, 'ticks': 1},
            'output': [{'total_queue_time': 0, 'mean_unused_builders': 1},
                       {'total_queue_time': 0, 'mean_unused_builders': 1}]}
-    assert compare_result_cis(good, bad) == 1
-    assert compare_result_means(good, bad) == 1
+    assert sorted([bad, good], cmp=compare_result_cis) == [good, bad]
+    assert sorted([bad, good], cmp=compare_result_means) == [good, bad]
     assert compare_result_means(good, bad, cost_per_builder_hour=0) == 0

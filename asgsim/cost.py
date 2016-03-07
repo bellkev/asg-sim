@@ -84,9 +84,9 @@ def compare_cis(ci_a, ci_b):
       0 if confidence intervals overlap
     """
     if ci_a[1] < ci_b[0]:
-        return 1
-    elif ci_b[1] < ci_a[1]:
         return -1
+    elif ci_b[1] < ci_a[1]:
+        return 1
     else:
         return 0
 
@@ -101,8 +101,8 @@ def compare_result_means(a, b, **kwargs):
     mean_a = mean(costs_from_job_results(a, **kwargs))
     mean_b = mean(costs_from_job_results(b, **kwargs))
     if mean_a < mean_b:
-        return 1
-    elif mean_b < mean_a:
         return -1
+    elif mean_b < mean_a:
+        return 1
     else:
         return 0
