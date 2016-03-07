@@ -18,6 +18,8 @@ STATIC_MINIMA = [(300, 10.0, 5), (300, 50.0, 12), (300, 200.0, 31),
                  (60, 2.0, 2), (120, 2.0, 2), (300, 2.0, 3),
                  (600, 2.0, 3), (1200, 2.0, 5)]
 
+BOOT_TIMES = [60, 120, 300, 600]
+
 
 def static_fleet_size(build_time, traffic):
     return [minimum[2] for minimum in STATIC_MINIMA if minimum[0] == build_time and minimum[1] == traffic][0]
@@ -86,7 +88,7 @@ def autoscaling_jobs():
              'scale_down_change': scale_down_change}
             # Start at optimum static fleet sizes
             for build_time, traffic, initial in STATIC_MINIMA
-            for boot_time in [60, 120, 300, 600]
+            for boot_time in BOOT_TIMES
             for alarm_period_duration in [60, 300]
             for up_alarm_count in alarm_count_range
             for down_alarm_count in alarm_count_range
