@@ -6,11 +6,11 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from numpy import mean
 
-from ..batches import load_results, STATIC_MINIMA, BOOT_TIMES
+from ..batches import generate_jobs, load_results, STATIC_MINIMA, BOOT_TIMES
 from ..cost import costs_from_job_results, cost_ci, compare_result_means, COST_PER_BUILDER_HOUR_EXPENSIVE
 
 
-def dep_vars(result):
+def i_vars(result):
     return (result['input']['build_run_time'], result['input']['builds_per_hour'])
 
 
@@ -20,25 +20,25 @@ def realistic(result):
 def bucket_auto_results(static_path, auto_path, auto_result_filter=realistic):
     static_results = load_results(static_path)
     auto_results = load_results(auto_path)
-    dvs_static_results = {}
+    ivs_static_results = {}
     worse_autos = defaultdict(list)
     maybe_better_autos = defaultdict(list)
     min_auto_means = {}
     min_autos = {}
     for result in static_results:
-        dvs_static_results[dep_vars(result)] = result
+        ivs_static_results[i_vars(result)] = result
     for result in filter(auto_result_filter, auto_results):
-        dvs = dep_vars(result)
+        ivs = i_vars(result)
         mean_cost = mean(costs_from_job_results(result))
-        if dvs not in min_autos.keys() or mean_cost < min_auto_means[dvs]:
-            min_auto_means[dvs] = mean_cost
-            min_autos[dvs] = result
-        comparison = compare_results(result, dvs_static_results[dvs])
+        if ivs not in min_autos.keys() or mean_cost < min_auto_means[ivs]:
+            min_auto_means[ivs] = mean_cost
+            min_autos[ivs] = result
+        comparison = compare_results(result, ivs_static_results[ivs])
         if comparison >= 0:
-            maybe_better_autos[dvs].append(result)
+            maybe_better_autos[ivs].append(result)
         elif comparison < 0:
-            worse_autos[dvs].append(result)
-    return dvs_static_results, worse_autos, maybe_better_autos, min_autos
+            worse_autos[ivs].append(result)
+    return ivs_static_results, worse_autos, maybe_better_autos, min_autos
 
 
 def param_sets(result_col):
@@ -86,7 +86,7 @@ def print_summary(buckets):
     print_param_sets(mins)
     print '(Maybe) better auto params:'
     print_param_sets(better)
-    print 'By dependent variables:'
+    print 'By independent variables:'
     for key in better.keys():
         print key, ':'
         print_param_sets(better[key])
@@ -101,51 +101,78 @@ def param_match_pred(d):
     return lambda x: param_match(d, x)
 
 
-def make_savings_v_build_time_plot(static, auto):
-    pred = param_match_pred({'builds_per_hour': 2.0, 'builder_boot_time': 600})
+def make_savings_v_i_var_plot(static, auto, param_filter, i_var, transform=lambda x:x):
+    pred = param_match_pred(param_filter)
     static_costs = {}
     min_autos = {}
     min_auto_costs = {}
-    dep_var = 'build_run_time'
     for result in filter(pred, static):
-        static_costs[result['input'][dep_var]] = mean(costs_from_job_results(result))
+        static_costs[result['input'][i_var]] = mean(costs_from_job_results(result))
     for result in filter(pred, auto):
         cost = mean(costs_from_job_results(result))
-        val = result['input'][dep_var]
+        val = result['input'][i_var]
         if val not in min_autos.keys() or cost < min_auto_costs[val]:
             min_autos[val] = result
             min_auto_costs[val] = cost
-    plt.plot([key for key in min_auto_costs.keys()], [1 - min_auto_costs[key] / static_costs[key] for key in min_auto_costs.keys()], 'bo')
-    plt.savefig('plots/min_auto_cost_v_runtime')
+    plt.plot([key for key in min_auto_costs], [1 - min_auto_costs[key] / static_costs[key] for key in min_auto_costs], 'bo')
+    plt.savefig('plots/auto_savings_v_' + i_var)
     plt.close()
 
 
-def make_savings_plot(static, sorted_auto):
-    mins = {} # defaultdict(list)
-    xs = []
-    ys = []
+def generate_candidate_jobs(sorted_auto, path, fraction=0.01, **kwargs):
+    minima = defaultdict(list)
+    candidates_per_key = max(1, int(len(sorted_auto) / float(len(STATIC_MINIMA) * len(BOOT_TIMES)) * fraction)) # take the best `fraction`
     for result in sorted_auto:
         params = result['input']
         result_key = (params['build_run_time'], params['builds_per_hour'], params['builder_boot_time'])
-        if result_key not in mins:
-            mins[result_key] = result
-    for min_key in mins:
-        static_result = filter(param_match_pred({'build_run_time': min_key[0], 'builds_per_hour': min_key[1], 'builder_boot_time': min_key[2]}), static)[0]
-        static_cost = mean(costs_from_job_results(static_result))
-        auto_cost = mean(costs_from_job_results(mins[min_key]))
-        build_time = float(min_key[0])
-        per_hour = float(min_key[1])
-        boot_time = float(min_key[2])
-        sec_per = 3600.0 / per_hour
-        x = log(max(boot_time / sec_per, boot_time / build_time))
-        R = auto_cost / static_cost
-        y = 1 - R
-        xs.append(x)
-        ys.append(y)
-    plt.plot(xs, ys, 'bo')
-    plt.savefig('plots/auto_savings.svg', format='svg')
+        if len(minima[result_key]) < candidates_per_key:
+            minima[result_key].append(result)
+    generate_jobs([result['input'] for key in minima for result in minima[key]], path, **kwargs)
+
+
+def minima_from_sorted_coll(k1, k2, sorted_coll):
+    minima = {}
+    for result in sorted_coll:
+        params = result['input']
+        result_key = (params.get(k1, None), params.get(k2, None))
+        if result_key not in minima:
+            minima[result_key] = result
+    return minima
+
+
+def make_savings_v_boot_time_plot(sorted_static, sorted_auto, scale_var, transform=lambda x:x, scale_var_label=None):
+    scale_var_label = scale_var_label or scale_var
+    min_autos = minima_from_sorted_coll(scale_var, 'builder_boot_time', sorted_auto)
+    min_statics = minima_from_sorted_coll(scale_var, 'builder_boot_time', sorted_static)
+    ratios = []
+    savings = []
+    for min_key in min_autos:
+        static_cost = mean(costs_from_job_results(min_statics[(min_key[0], None)]))
+        auto_cost = mean(costs_from_job_results(min_autos[min_key]))
+        scale_var_transformed = transform(float(min_key[0]))
+        boot_time = float(min_key[1])
+        ratios.append(boot_time / scale_var_transformed)
+        savings.append((1 - auto_cost / static_cost) * 100.0)
+    max_savings = {}
+    for ratio, saving in zip(ratios, savings):
+        bucket = round(log(ratio, 2.0))
+        if bucket not in max_savings or saving > max_savings[bucket]:
+            max_savings[bucket] = saving
+    plt.title('Savings from Auto Scaling Groups', y=1.05)
+    plt.ylabel('Maximum savings over fixed-size fleet (%)')
+    plt.xlabel('Ratio of builder_boot_time:%s' % scale_var_label)
+    plt.plot(max_savings.keys(), max_savings.values(), 'bo')
+    ax = plt.subplot(111)
+    ax.set_xticks([-6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0])
+    ax.set_xticklabels(['1:64', '1:16', '1:4', '1:1', '4:1', '16:1', '64:1'])
+    plt.savefig('plots/savings_v_boot_time_and_%s.svg' % scale_var_label, format='svg')
     plt.close()
 
 
 if __name__ == '__main__':
-    make_savings_plot(load_results('jobs/static'), sorted(load_results('jobs/auto'), cmp=compare_result_means))
+    # generate_candidate_jobs(sorted(load_results('jobs/candidates1'), cmp=compare_result_means), 'jobs/candidates2', fraction=0.05, trials=100)
+    sorted_auto = sorted(load_results('job-archives/2c517e8/candidates2'), cmp=compare_result_means)
+    sorted_static = sorted(load_results('job-archives/2c517e8/static'), cmp=compare_result_means)
+    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'builds_per_hour',
+                                  transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds')
+    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time')
