@@ -35,13 +35,14 @@ def sec_per_tick(*times):
         return LOW_RESOLUTION
 
 
-def generate_jobs(jobs, path):
+def generate_jobs(jobs, path, trials=5):
     jobs_per_batch = 100
     for job in jobs:
         job['sec_per_tick'] = sec_per_tick(job['build_run_time'],
                                            job.get('builder_boot_time', 9999),
                                            job.get('alarm_period_duration', 9999))
         job['ticks'] = TRIAL_DURATION_SECS / job['sec_per_tick']
+        job['trials'] = trials
     batch_count = len(jobs) / jobs_per_batch + 1
     for batch in range(batch_count):
         start = batch * jobs_per_batch
@@ -56,7 +57,6 @@ def generate_jobs(jobs, path):
 
 def static_jobs():
     jobs = [{'autoscale': False,
-             'trials': 1000,
              'build_run_time': build_time,
              'builds_per_hour': traffic,
              'initial_builder_count': initial}
@@ -65,7 +65,7 @@ def static_jobs():
 
 
 def generate_static_jobs(path):
-    generate_jobs(static_jobs(), path)
+    generate_jobs(static_jobs(), path, trials=1000)
 
 
 def autoscaling_jobs():
@@ -74,7 +74,6 @@ def autoscaling_jobs():
     change_range = [1, 2, 4]
     # Whee! List comprehension!
     jobs = [{'autoscale': True,
-             'trials': 5,
              'build_run_time': build_time,
              'builds_per_hour': traffic,
              'builder_boot_time': boot_time,
