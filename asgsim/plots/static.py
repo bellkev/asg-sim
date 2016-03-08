@@ -81,13 +81,16 @@ def make_queue_time_v_utilization_plot():
 def make_cost_curve_plot():
     sizes = range(100,150)
     opts = [{'initial_builder_count': size, 'builds_per_hour': 1000.0,
-             'ticks': 100000, 'sec_per_tick': 10, 'builder_boot_time': 0}
+             'ticks': 1000000, 'sec_per_tick': 10, 'builder_boot_time': 0}
             for size in sizes]
 
     p = Pool(8)
     cost_data = map(mean, p.map(costs, opts))
     p.close()
 
+    plt_title('Cost vs Fleet Size')
+    plt.xlabel('Fleet Size')
+    plt.ylabel('Cost ($)')
     plt.plot(sizes, cost_data)
     plt_save('plots/cost_curve')
 
@@ -139,7 +142,7 @@ def make_cost_v_traffic_plots():
     ticks = 100000
     make_cost_plot('Cost vs Fleet Size for Various Traffic Patterns (5 min builds, m4.large)', configs, [0, 150, 0, ticks * 15 / 1000], 'plots/cost_v_traffic_cheap',
                     cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR, build_run_time=300, ticks=ticks, sec_per_tick=10)
-    make_cost_plot('Cost vs Fleet Size for Various Traffic Patterns (5 min builds, 2X m4.8xl)', configs, [0, 150, 0, ticks * 6 / 10], 'plots/cost_v_traffic_expensive',
+    make_cost_plot('Cost vs Fleet Size for Various Traffic Patterns (5 min builds, 2X m4.10xl)', configs, [0, 150, 0, ticks * 6 / 10], 'plots/cost_v_traffic_expensive',
                     cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR_EXPENSIVE, build_run_time=300, ticks=ticks, sec_per_tick=10)
     make_cost_plot('Cost vs Fleet Size for Various Traffic Patterns (40 min builds, m4.large)', slow_configs, [0, 60, 0, ticks * 5 / 100], 'plots/cost_v_traffic_slow',
                    cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR, build_run_time=2400, ticks=ticks, sec_per_tick=60)
@@ -207,7 +210,7 @@ def make_cost_v_build_time_plots():
     ticks = 100000
     make_cost_plot('Cost vs Fleet Size for Various Build Times (50 builds / hr, m4.large)', configs, [0, 60, 0, ticks * 1 / 100], 'plots/cost_v_build_time_cheap',
                     cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR, builds_per_hour=50.0, ticks=ticks, sec_per_tick=10)
-    make_cost_plot('Cost vs Fleet Size for Various Build Times (50 builds / hr, 2X m4.8xl)', configs, [0, 60, 0, ticks * 25 / 100], 'plots/cost_v_build_time_expensive',
+    make_cost_plot('Cost vs Fleet Size for Various Build Times (50 builds / hr, 2X m4.10xl)', configs, [0, 60, 0, ticks * 25 / 100], 'plots/cost_v_build_time_expensive',
                     cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR_EXPENSIVE, builds_per_hour=50.0, ticks=ticks, sec_per_tick=10)
     make_cost_plot('Cost vs Fleet Size for Various Build Times (2 builds / hr, m4.large)', slow_configs, [0, 10, 0, ticks * 3 / 1000], 'plots/cost_v_build_time_slow',
                    cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR, builds_per_hour=2.0, ticks=ticks, sec_per_tick=10)
