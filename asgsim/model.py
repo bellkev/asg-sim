@@ -1,4 +1,5 @@
 from collections import deque
+from math import sin, pi
 
 from numpy import percentile
 from numpy.random import poisson
@@ -132,16 +133,17 @@ class Model(object):
       of repeated builds to detect flaky tests will not be modeled
     """
 
-    _defaults = dict(builds_per_hour=10.0, build_run_time=300, initial_builder_count=1,
-                     builder_boot_time=300, sec_per_tick=10, autoscale=False,
-                     initial_build_count=0)
+    CONSTANT = 0
+    SINE = 1
 
     def __init__(self, **kwargs):
 
         # Config
-        self.__dict__.update(self._defaults)
+        defaults = dict(builds_per_hour=10.0, build_run_time=300, initial_builder_count=1,
+                        builder_boot_time=300, sec_per_tick=10, autoscale=False,
+                        initial_build_count=0, builds_per_hour_fn=self.CONSTANT)
+        self.__dict__.update(defaults)
         self.__dict__.update(**kwargs)
-        self.builds_per_tick = self.builds_per_hour / 3600.0 * float(self.sec_per_tick)
         self.build_run_time_ticks = self.build_run_time / self.sec_per_tick
         self.builder_boot_time_ticks = self.builder_boot_time / self.sec_per_tick
         if self.autoscale:
@@ -179,6 +181,20 @@ class Model(object):
         for build in range(self.initial_build_count):
             self.build_queue.append(Build(self.ticks, self.build_run_time_ticks))
 
+    def current_builds_per_hour(self):
+        if self.builds_per_hour_fn == self.CONSTANT:
+            return self.builds_per_hour
+        elif self.builds_per_hour_fn == self.SINE:
+            # A sinusoid with 24hr period that is 0 at t=0hr, 1 at t=12hr, 0 at t=24hr
+            t = self.ticks * self.sec_per_tick / 3600.0
+            w = (2.0 * pi) / 24.0
+            p = pi / 2.0
+            multiple = 0.5 * sin(w * t - p) + 0.5
+            return multiple * self.builds_per_hour
+
+    def builds_per_tick(self):
+        return self.current_builds_per_hour() / 3600.0 * self.sec_per_tick
+
     def theoretical_queue_time(self):
         """
         Theoretical mean queue time for an M/D/1 queue:
@@ -188,7 +204,7 @@ class Model(object):
         assert self.initial_builder_count == 1
 
         u = 1.0 / float(self.build_run_time_ticks)
-        l = self.builds_per_tick
+        l = self.builds_per_tick()
         r = l / u
         return (1 / (2 * u)) * (r / (1 - r)) * self.sec_per_tick
 
@@ -233,7 +249,7 @@ class Model(object):
             self.builders.remove(b)
 
     def queue_builds(self):
-        n = poisson(self.builds_per_tick)
+        n = poisson(self.builds_per_tick())
         for b in range(n):
             self.build_queue.append(Build(self.ticks, self.build_run_time_ticks))
 

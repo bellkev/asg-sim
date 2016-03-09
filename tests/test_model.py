@@ -79,11 +79,42 @@ def test_build_throughput():
     assert (builds[1].started_time - builds[1].queued_time) == m.build_run_time
 
 
-def test_builds_per_hour():
+def test_fixed_builds_per_hour():
+    m = Model(ticks=3600, builds_per_hour=100.0, build_run_time=10, sec_per_tick=10,
+              initial_builder_count=100, builder_boot_time=0)
+    assert m.current_builds_per_hour() == 100.0
+
+
+def test_fixed_builds_per_hour_e2e():
     # This test is not deterministic, but random fails should be extremely rare
     m = run_model(ticks=3600, builds_per_hour=100.0, build_run_time=10, sec_per_tick=10,
                   initial_builder_count=100, builder_boot_time=0)
     assert 900 < len(m.finished_builds) < 1100
+
+
+def test_dynamic_builds_per_hour():
+    m = Model(builds_per_hour=100.0, build_run_time=10, sec_per_tick=3600,
+              initial_builder_count=100, builder_boot_time=0, builds_per_hour_fn=Model.SINE)
+    assert m.current_builds_per_hour() == 0.0
+    m.advance(12)
+    print 'ticks:', m.ticks
+    print 'per hour:', m.current_builds_per_hour()
+    assert m.current_builds_per_hour() == 100.0
+    m.advance(12)
+    assert m.current_builds_per_hour() == 0.0
+
+
+def test_dynamic_builds_per_hour_e2e():
+    # This test is not deterministic, but random fails should be extremely rare
+    m = Model(builds_per_hour=6000.0, build_run_time=10, sec_per_tick=60,
+              initial_builder_count=100, builder_boot_time=0, builds_per_hour_fn=Model.SINE)
+    m.advance(1)
+    assert len(m.finished_builds) < 10
+    m.advance(720) # 12 hrs
+    initial =len(m.finished_builds)
+    m.advance(1)
+    final = len(m.finished_builds)
+    assert 90 < final - initial < 110
 
 
 def test_initial_boot():
