@@ -105,7 +105,7 @@ def make_cost_plot(title, configs, axis, filename, **extra_opts):
                       extra_opts)
                 for size in config['sizes']]
         cost_data = map(mean, p.map(costs, opts))
-        handle, = plt.plot(config['sizes'], cost_data, config['color'] + '-', label=config['label'])
+        handle, = plt.plot(config['sizes'], cost_data, '-', color=config['color'], label=config['label'])
         handles.append(handle)
         min_cost = min(cost_data)
         min_size = config['sizes'][cost_data.index(min_cost)]
@@ -256,6 +256,27 @@ def make_optimum_build_time_plots():
     make_optimum_build_time_plot('Optimum Queue Time and Utilization (50 builds / hour, 2 m4.10xls / build)', build_times, expensive_machine_minima, suffix='_expensive')
 
 
+def make_slow_expensive_plots():
+    # A few remaining traffic patterns for comparison against autoscaling
+    configs = [
+        {'sizes': range(1, 10), 'opts': {'build_run_time': 2400, 'builds_per_hour': 1.0}, 'label': '2400, 1.0', 'color': 'b'},
+        {'sizes': range(1, 10), 'opts': {'build_run_time': 2400, 'builds_per_hour': 2.0}, 'label': '2400, 2.0', 'color': 'g'},
+        {'sizes': range(3, 20), 'opts': {'build_run_time': 2400, 'builds_per_hour': 5.0}, 'label': '2400, 5.0', 'color': 'r'},
+        {'sizes': range(5, 20), 'opts': {'build_run_time': 2400, 'builds_per_hour': 10.0}, 'label': '2400, 10.0', 'color': 'c'},
+        {'sizes': range(10, 35), 'opts': {'build_run_time': 2400, 'builds_per_hour': 20.0}, 'label': '2400, 20.0', 'color': 'm'},
+        {'sizes': range(1, 5), 'opts': {'build_run_time': 60, 'builds_per_hour': 2.0}, 'label': '60, 2.0', 'color': 'y'},
+        {'sizes': range(1, 5), 'opts': {'build_run_time': 120, 'builds_per_hour':2.0}, 'label': '120, 2.0', 'color': 'k'},
+        {'sizes': range(1, 5), 'opts': {'build_run_time': 300, 'builds_per_hour':2.0}, 'label': '300, 2.0', 'color': '#3BC1ED'},
+        {'sizes': range(1, 5), 'opts': {'build_run_time': 600, 'builds_per_hour':2.0}, 'label': '600, 2.0', 'color': '#DB3BED'},
+        {'sizes': range(1, 10), 'opts': {'build_run_time': 1200, 'builds_per_hour':2.0}, 'label': '1200, 2.0', 'color': '#EDAC3B'}
+    ]
+    ticks = 100000
+    make_cost_plot('Slow builds on expensive machines', configs, [0, 25, 0, ticks * 15 / 100], 'plots/slow_expensive',
+                    cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR_EXPENSIVE, ticks=ticks, sec_per_tick=10)
+    # Sample output: [(3, 3225.3252211111112), (4, 4438.0749250000008), (7, 6656.2780833333336), (12, 9168.3627800000013), (21, 12324.942074444445), (1, 1295.5906672222222), (1, 1349.7570200000002), (1, 2014.3006411111114), (2, 2482.265152777778), (3, 3310.3028344444442)]
+
+
+
 if __name__ == '__main__':
     print 'Resolution'
     make_resolution_plots()
@@ -271,3 +292,5 @@ if __name__ == '__main__':
     make_cost_v_build_time_plots()
     print 'Optimum Fleets Build Time'
     make_optimum_build_time_plots()
+    print 'Slow and Expensive'
+    make_slow_expensive_plots()

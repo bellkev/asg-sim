@@ -27,7 +27,8 @@ def run_job(opts):
    return  _run_job(**opts)
 
 
-def costs_from_job_results(results, cost_per_builder_hour=COST_PER_BUILDER_HOUR):
+def costs_from_job_results(results, cost_per_builder_hour=COST_PER_BUILDER_HOUR,
+                           cost_per_dev_hour=COST_PER_DEV_HOUR):
     """
     Returns a scalar cost for a single-run job, or a list
     of costs for a job with multiple trials.
@@ -36,20 +37,18 @@ def costs_from_job_results(results, cost_per_builder_hour=COST_PER_BUILDER_HOUR)
     output = results['output']
     # Cost parameters
     sec_per_tick = opts['sec_per_tick']
-    cost_per_dev_hour = 100 # a reasonably average contractor rate
-    adjusted_cost_per_dev_hour = cost_per_dev_hour * 2 # adjust for a bit of a "concentration loss factor"
     ticks = opts['ticks']
     simulation_time_hours = ticks * sec_per_tick / 3600.0
     # Prefer to use total queue time directly, but support older format
     if 'total_queue_time' in output[0].keys():
         def cost_of_output(output):
             builder_cost = output['mean_unused_builders'] * cost_per_builder_hour * simulation_time_hours
-            queue_cost = output['total_queue_time'] / 3600.0 * COST_PER_DEV_HOUR
+            queue_cost = output['total_queue_time'] / 3600.0 * cost_per_dev_hour
             return builder_cost + queue_cost
     else:
         def cost_of_output(output):
             cost_per_hour = (output['mean_unused_builders'] * cost_per_builder_hour
-                         + opts['builds_per_hour'] * output['mean_queue_time'] / 3600.0 * COST_PER_DEV_HOUR)
+                             + opts['builds_per_hour'] * output['mean_queue_time'] / 3600.0 * cost_per_dev_hour)
             return simulation_time_hours * cost_per_hour
     return map(cost_of_output, output)
 

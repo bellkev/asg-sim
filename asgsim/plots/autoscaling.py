@@ -101,16 +101,16 @@ def param_match_pred(d):
     return lambda x: param_match(d, x)
 
 
-def make_savings_v_i_var_plot(static, auto, param_filter, i_var, transform=lambda x:x):
+def make_savings_v_i_var_plot(static, auto, param_filter, i_var, transform=lambda x:x, **kwargs):
     pred = param_match_pred(param_filter)
     static_costs = {}
     min_autos = {}
     min_auto_costs = {}
     for result in filter(pred, static):
-        static_costs[result['input'][i_var]] = mean(costs_from_job_results(result))
+        static_costs[transform(result['input'][i_var])] = mean(costs_from_job_results(result, **kwargs))
     for result in filter(pred, auto):
-        cost = mean(costs_from_job_results(result))
-        val = result['input'][i_var]
+        cost = mean(costs_from_job_results(result, **kwargs))
+        val = transform(result['input'][i_var])
         if val not in min_autos.keys() or cost < min_auto_costs[val]:
             min_autos[val] = result
             min_auto_costs[val] = cost
@@ -140,15 +140,15 @@ def minima_from_sorted_coll(k1, k2, sorted_coll):
     return minima
 
 
-def make_savings_v_boot_time_plot(sorted_static, sorted_auto, scale_var, transform=lambda x:x, scale_var_label=None):
+def make_savings_v_boot_time_plot(sorted_static, sorted_auto, scale_var, transform=lambda x:x, scale_var_label=None, suffix='', **kwargs):
     scale_var_label = scale_var_label or scale_var
     min_autos = minima_from_sorted_coll(scale_var, 'builder_boot_time', sorted_auto)
     min_statics = minima_from_sorted_coll(scale_var, 'builder_boot_time', sorted_static)
     ratios = []
     savings = []
     for min_key in min_autos:
-        static_cost = mean(costs_from_job_results(min_statics[(min_key[0], None)]))
-        auto_cost = mean(costs_from_job_results(min_autos[min_key]))
+        static_cost = mean(costs_from_job_results(min_statics[(min_key[0], None)], **kwargs))
+        auto_cost = mean(costs_from_job_results(min_autos[min_key], **kwargs))
         scale_var_transformed = transform(float(min_key[0]))
         boot_time = float(min_key[1])
         ratios.append(boot_time / scale_var_transformed)
@@ -165,14 +165,19 @@ def make_savings_v_boot_time_plot(sorted_static, sorted_auto, scale_var, transfo
     ax = plt.subplot(111)
     ax.set_xticks([-6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0])
     ax.set_xticklabels(['1:64', '1:16', '1:4', '1:1', '4:1', '16:1', '64:1'])
-    plt.savefig('plots/savings_v_boot_time_and_%s.svg' % scale_var_label, format='svg')
+    plt.savefig('plots/savings_v_boot_time_and_%s%s.svg' % (scale_var_label, suffix), format='svg')
     plt.close()
 
 
 if __name__ == '__main__':
-    # generate_candidate_jobs(sorted(load_results('jobs/candidates1'), cmp=compare_result_means), 'jobs/candidates2', fraction=0.05, trials=100)
-    sorted_auto = sorted(load_results('job-archives/2c517e8/candidates2'), cmp=compare_result_means)
-    sorted_static = sorted(load_results('job-archives/2c517e8/static'), cmp=compare_result_means)
+    def compare_result_means_expensive(a, b):
+        return compare_result_means(a, b, cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE)
+    # generate_candidate_jobs(sorted(load_results('job-archives/2c517e8/auto'), cmp=compare_result_means_expensive), 'job-archives/2c517e8/candidates-expensive1',
+    #                         fraction=0.05, trials=10)
+    sorted_auto = sorted(load_results('job-archives/2c517e8/candidates-expensive1'), cmp=compare_result_means_expensive)
+    sorted_static = sorted(load_results('job-archives/2c517e8/static-expensive'), cmp=compare_result_means_expensive)
     make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'builds_per_hour',
-                                  transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds')
-    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time')
+                                  transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds',
+                                  cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE, suffix='_expensive')
+    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time',
+                                  cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE, suffix='_expensive')
