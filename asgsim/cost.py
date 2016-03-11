@@ -57,8 +57,11 @@ def costs(opts):
     # Bit of a hack to keep things easily pickleable
     machine_cost = opts.pop('cost_per_builder_hour',
                             COST_PER_BUILDER_HOUR)
+    dev_cost = opts.pop('cost_per_dev_hour',
+                            COST_PER_DEV_HOUR)
     results = run_job(opts)
-    return costs_from_job_results(results, cost_per_builder_hour=machine_cost)
+    return costs_from_job_results(results, cost_per_builder_hour=machine_cost,
+                                  cost_per_dev_hour=dev_cost)
 
 
 def cost_ci(results, percent=95):

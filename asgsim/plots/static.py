@@ -1,3 +1,4 @@
+from math import log
 from multiprocessing import Pool
 
 import matplotlib
@@ -122,6 +123,34 @@ def make_cost_plot(title, configs, axis, filename, **extra_opts):
     print 'Optimal fleet sizes:', minima
 
 
+def make_optimum_plot(title, i_var, label, vals, minima, axes, suffix='', transform=lambda x:x, **kwargs):
+    utilizations = []
+    means = []
+
+    for val, minimum in zip(vals, minima):
+        extra_kwargs = merge(kwargs, {i_var: val})
+        size, cost = minimum
+        m = run_model(sec_per_tick=10, initial_builder_count=size, **extra_kwargs)
+        utilizations.append(m.mean_percent_utilization())
+        means.append(m.mean_queue_time())
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.set_title(title, y=1.05)
+    m_handle, = ax1.plot(map(transform, vals), means, 'gs', label='Mean Queue Time (s)')
+    ax1.axis(axes[0])
+    ax1.set_xlabel(label)
+    ax1.set_ylabel('Time (s)')
+
+    ax2 = ax1.twinx()
+    u_handle, = ax2.plot(map(transform, vals), utilizations, 'bo', label='% Builder Utilization')
+    ax2.axis(axes[1])
+    ax2.set_ylabel('% Utilization')
+    plt.legend(handles=[m_handle, u_handle], loc='upper left')
+    plt_save('plots/optimum_props_by_%s%s' % (i_var, suffix))
+
+
+
 def make_cost_v_traffic_plots():
     configs = [
         {'sizes': range(1, 20), 'opts': {'builds_per_hour': 10.0}, 'label': '10 builds / hr', 'color': 'b'},
@@ -148,32 +177,6 @@ def make_cost_v_traffic_plots():
                    cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR, build_run_time=2400, ticks=ticks, sec_per_tick=60)
 
 
-def make_optimum_traffic_plot(title, traffics, minima, suffix=''):
-    utilizations = []
-    means = []
-
-    for traffic, minimum in zip(traffics, minima):
-        size, cost = minimum
-        m = run_model(ticks=100000, builds_per_hour=traffic, build_run_time=300, builder_boot_time=0, sec_per_tick=10, initial_builder_count=size)
-        utilizations.append(m.mean_percent_utilization())
-        means.append(m.mean_queue_time())
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(111)
-    ax1.set_title(title, y=1.05)
-    m_handle, = ax1.plot(traffics, means, 'gs', label='Mean Queue Time (s)')
-    ax1.axis([10, 1200, 0, 8])
-    ax1.set_xlabel('Builds per Hour')
-    ax1.set_ylabel('Time (s)')
-
-    ax2 = ax1.twinx()
-    u_handle, = ax2.plot(traffics, utilizations, 'bo', label='% Builder Utilization')
-    ax2.axis([10, 1200, 0, 100])
-    ax2.set_ylabel('% Utilization')
-    plt.legend(handles=[m_handle, u_handle], loc='upper left')
-    plt_save('plots/optimum_props_by_traffic' + suffix)
-
-
 def make_optimum_traffic_plots():
     # Results from make_cost_v_traffic_plots
     traffics = [10.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
@@ -183,8 +186,12 @@ def make_optimum_traffic_plots():
                                 (26, 13814.710410555557), (55, 21017.942717222224), (102, 29345.773465555558)]
     slow_minima = [(5, 900.67199999999991), (6, 1077.5042000000001), (10, 1572.2400666666667),
                    (17, 2157.8415999999997), (26, 2840.8574666666668), (53, 4335.4602666666669)]
-    make_optimum_traffic_plot('Optimum Queue Time and Utilization (5 min builds, 1 m4.large / build) ', traffics, cheap_machine_minima, suffix='_cheap')
-    make_optimum_traffic_plot('Optimum Queue Time and Utilization (5 min builds, 2 m4.10xls / build)', traffics, expensive_machine_minima, suffix='_expensive')
+    axes = ([10, 1200, 0, 8], [0, 1200, 0, 100])
+    kwargs = dict(ticks=100000, build_run_time=300, builder_boot_time=0)
+    make_optimum_plot('Optimum Queue Time and Utilization (5 min builds, 1 m4.large / build) ', 'builds_per_hour', 'Builds per hour',
+                      traffics, cheap_machine_minima, axes, suffix='_cheap', **kwargs)
+    make_optimum_plot('Optimum Queue Time and Utilization (5 min builds, 2 m4.10xls / build)', 'builds_per_hour', 'Builds per hour',
+                      traffics, expensive_machine_minima, axes, suffix='_expensive', **kwargs)
 
 
 def make_cost_v_build_time_plots():
@@ -216,33 +223,6 @@ def make_cost_v_build_time_plots():
                    cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR, builds_per_hour=2.0, ticks=ticks, sec_per_tick=10)
 
 
-def make_optimum_build_time_plot(title, build_times, minima, suffix=''):
-    plot_times = [bt / 60.0 for bt in build_times]
-    utilizations = []
-    means = []
-
-    for build_time, minimum in zip(build_times, minima):
-        size, cost = minimum
-        m = run_model(ticks=100000, builds_per_hour=50.0, build_run_time=build_time, builder_boot_time=0, sec_per_tick=10, initial_builder_count=size)
-        utilizations.append(m.mean_percent_utilization())
-        means.append(m.mean_queue_time())
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(111)
-    ax1.set_title(title, y=1.05)
-    m_handle, = ax1.plot(plot_times, means, 'gs', label='Mean Queue Time (s)')
-    ax1.axis([0, 60, 0, 8])
-    ax1.set_xlabel('Build Time (m)')
-    ax1.set_ylabel('Time (s)')
-
-    ax2 = ax1.twinx()
-    u_handle, = ax2.plot(plot_times, utilizations, 'bo', label='% Builder Utilization')
-    ax2.axis([0, 60, 0, 100])
-    ax2.set_ylabel('% Utilization')
-    plt.legend(handles=[m_handle, u_handle], loc='upper left')
-    plt_save('plots/optimum_props_by_build_time' + suffix)
-
-
 def make_optimum_build_time_plots():
     # Results from make_cost_v_build_time_plots
     build_times = [30, 60, 120, 300, 600, 1200, 2400]
@@ -252,8 +232,12 @@ def make_optimum_build_time_plots():
                                 (9, 7243.547856666667), (15, 9822.7221577777782), (25, 13419.815085555554), (45, 18624.54101444445)]
     slow_minima = [(1, 40.895044444444444), (2, 66.097422222222207), (2, 66.289766666666679),
                    (3, 94.816888888888883), (3, 110.61755555555555), (5, 147.17408888888889), (6, 176.68764444444443)]
-    make_optimum_build_time_plot('Optimum Queue Time and Utilization (50 builds / hour, 1 m4.large / build) ', build_times,  cheap_machine_minima, suffix='_cheap')
-    make_optimum_build_time_plot('Optimum Queue Time and Utilization (50 builds / hour, 2 m4.10xls / build)', build_times, expensive_machine_minima, suffix='_expensive')
+    axes = ([0, 60, 0, 8], [0, 60, 0, 100])
+    kwargs = dict(ticks=100000, builds_per_hour=50.0, builder_boot_time=0, transform=lambda x: x / 60.0)
+    make_optimum_plot('Optimum Queue Time and Utilization (50 builds / hour, 1 m4.large / build) ', 'build_run_time', 'Build time (m)',
+                      build_times,  cheap_machine_minima, axes, suffix='_cheap', **kwargs)
+    make_optimum_plot('Optimum Queue Time and Utilization (50 builds / hour, 2 m4.10xls / build)', 'build_run_time', 'Build time (m)',
+                      build_times, expensive_machine_minima, axes, suffix='_expensive', **kwargs)
 
 
 def make_slow_expensive_plots():
@@ -276,6 +260,28 @@ def make_slow_expensive_plots():
     # Sample output: [(3, 3225.3252211111112), (4, 4438.0749250000008), (7, 6656.2780833333336), (12, 9168.3627800000013), (21, 12324.942074444445), (1, 1295.5906672222222), (1, 1349.7570200000002), (1, 2014.3006411111114), (2, 2482.265152777778), (3, 3310.3028344444442)]
 
 
+def make_cheap_dev_plot():
+    # What would the optimum be with a static fleet if developer time was dirt cheap?
+    configs = [
+        {'sizes': range(1, 25), 'opts': {'cost_per_dev_hour': 0.01}, 'label': '1 cent / hr', 'color': 'k'},
+        {'sizes': range(1, 25), 'opts': {'cost_per_dev_hour': 0.1}, 'label': '10 cents / hr', 'color': 'b'},
+        {'sizes': range(1, 25), 'opts': {'cost_per_dev_hour': 1}, 'label': '1 dollar / hr', 'color': 'g'},
+        {'sizes': range(1, 25), 'opts': {'cost_per_dev_hour': 10}, 'label': '10 dollars / hr', 'color': 'r'},
+    ]
+    ticks = 100000
+    make_cost_plot('Cheap Developers', configs, [0, 100, 0, ticks * 15 / 1000], 'plots/cheap_devs',
+                   cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR_EXPENSIVE,
+                   build_run_time=300, builds_per_hour=50.0, ticks=ticks, sec_per_tick=10)
+
+def make_optimum_cheap_dev_plot():
+    costs = [0.01, 0.1, 1, 10]
+    minima = [(4, 703.05473555555545), (5, 1114.5530394444445), (5, 1527.2476744444443), (6, 3525.6164516666663)]
+    make_optimum_plot('Optimum Pops for Cheap Developers', 'cost_per_dev_hour',
+                      'log_10($ per developer hour)',
+                      costs, minima, ([-2, 2, 0, 24000], [-2, 2, 0, 100]), transform=lambda x: log(x, 10),
+                      ticks=100000, builds_per_hour=50.0, build_run_time=300)
+
+
 
 if __name__ == '__main__':
     print 'Resolution'
@@ -294,3 +300,6 @@ if __name__ == '__main__':
     make_optimum_build_time_plots()
     print 'Slow and Expensive'
     make_slow_expensive_plots()
+    print 'Cheap Devs'
+    make_cheap_dev_plot()
+    make_optimum_cheap_dev_plot()

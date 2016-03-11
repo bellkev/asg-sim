@@ -6,7 +6,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from numpy import mean
 
-from ..batches import generate_jobs, load_results, STATIC_MINIMA, BOOT_TIMES
+from ..batches import generate_jobs, load_results, STATIC_MINIMA, BOOT_TIMES, TRIAL_DURATION_SECS
 from ..cost import costs_from_job_results, cost_ci, compare_result_means, COST_PER_BUILDER_HOUR_EXPENSIVE
 
 
@@ -101,13 +101,47 @@ def param_match_pred(d):
     return lambda x: param_match(d, x)
 
 
+def max_savings(static, auto, param_filter, **kwargs):
+    pred = param_match_pred(param_filter)
+    static_cost = None
+    min_auto = None
+    min_auto_cost = None
+    static_results = filter(pred, static)
+    assert len(static_results) == 1 # param_filter should uniquely specify a static case
+    static_cost = mean(costs_from_job_results(static_results[0], **kwargs))
+    for result in filter(pred, auto):
+        cost = mean(costs_from_job_results(result, **kwargs))
+        if not min_auto_cost or cost < min_auto_cost:
+            min_auto = result
+            min_auto_cost = cost
+    return min_auto, (1 - min_auto_cost / static_cost) * 100
+
+def make_savings_v_dev_cost_plot(static, auto, param_filter):
+    dev_costs = [0.01, 0.1, 1, 5, 10, 100, 200]
+    savings = []
+    for dev_cost in dev_costs:
+        result, saving = max_savings(static, auto, param_filter,
+                                      cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE,
+                                      cost_per_dev_hour=dev_cost)
+        savings.append(saving)
+        print 'developer rate:', dev_cost
+        print 'savings:', '%s%%' % saving
+        print 'mean queue time:', mean([o['total_queue_time'] for o in result['output']]) / (result['input']['builds_per_hour'] * TRIAL_DURATION_SECS / 3600.0), 'seconds'
+        print 'params:', result['input']
+    plt.plot(dev_costs, savings)
+    plt.savefig('plots/savings_v_dev_cost')
+    plt.close()
+
+
 def make_savings_v_i_var_plot(static, auto, param_filter, i_var, transform=lambda x:x, **kwargs):
     pred = param_match_pred(param_filter)
     static_costs = {}
     min_autos = {}
     min_auto_costs = {}
     for result in filter(pred, static):
-        static_costs[transform(result['input'][i_var])] = mean(costs_from_job_results(result, **kwargs))
+        val = transform(result['input'][i_var])
+        assert val not in static_costs # param_filter should uniquely specify a static case
+        static_costs[val] = mean(costs_from_job_results(result, **kwargs))
     for result in filter(pred, auto):
         cost = mean(costs_from_job_results(result, **kwargs))
         val = transform(result['input'][i_var])
@@ -174,10 +208,12 @@ if __name__ == '__main__':
         return compare_result_means(a, b, cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE)
     # generate_candidate_jobs(sorted(load_results('job-archives/2c517e8/auto'), cmp=compare_result_means_expensive), 'job-archives/2c517e8/candidates-expensive1',
     #                         fraction=0.05, trials=10)
-    sorted_auto = sorted(load_results('job-archives/2c517e8/candidates-expensive1'), cmp=compare_result_means_expensive)
-    sorted_static = sorted(load_results('job-archives/2c517e8/static-expensive'), cmp=compare_result_means_expensive)
-    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'builds_per_hour',
-                                  transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds',
-                                  cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE, suffix='_expensive')
-    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time',
-                                  cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE, suffix='_expensive')
+    # sorted_auto = sorted(load_results('job-archives/2c517e8/candidates-expensive1'), cmp=compare_result_means_expensive)
+    # sorted_static = sorted(load_results('job-archives/2c517e8/static-expensive'), cmp=compare_result_means_expensive)
+    # make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'builds_per_hour',
+    #                               transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds',
+    #                               cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE, suffix='_expensive')
+    # make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time',
+    #                               cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE, suffix='_expensive')
+    make_savings_v_dev_cost_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/auto'),
+                                 {'builder_boot_time': 300, 'build_run_time': 300, 'builds_per_hour': 10.0})
