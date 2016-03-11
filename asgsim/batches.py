@@ -86,7 +86,7 @@ def autoscaling_jobs():
              'build_run_time': build_time,
              'builds_per_hour': traffic,
              'builder_boot_time': boot_time,
-             'initial_builder_count': initial,
+             'initial_builder_count': up_threshold,
              'alarm_period_duration': alarm_period_duration,
              'scale_up_alarm_period_count': up_alarm_count,
              'scale_down_alarm_period_count': down_alarm_count,
