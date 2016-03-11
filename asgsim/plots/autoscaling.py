@@ -116,7 +116,7 @@ def max_savings(static, auto, param_filter, **kwargs):
             min_auto_cost = cost
     return min_auto, (1 - min_auto_cost / static_cost) * 100
 
-def make_savings_v_dev_cost_plot(static, auto, param_filter):
+def make_savings_v_dev_cost_plot(static, auto, param_filter, trial_duration=TRIAL_DURATION_SECS):
     dev_costs = [0.01, 0.1, 1, 5, 10, 100, 200]
     savings = []
     for dev_cost in dev_costs:
@@ -126,7 +126,7 @@ def make_savings_v_dev_cost_plot(static, auto, param_filter):
         savings.append(saving)
         print 'developer rate:', dev_cost
         print 'savings:', '%s%%' % saving
-        print 'mean queue time:', mean([o['total_queue_time'] for o in result['output']]) / (result['input']['builds_per_hour'] * TRIAL_DURATION_SECS / 3600.0), 'seconds'
+        print 'mean queue time:', mean([o['total_queue_time'] for o in result['output']]) / (result['input']['builds_per_hour'] * trial_duration / 3600.0), 'seconds'
         print 'params:', result['input']
     plt.plot(dev_costs, savings)
     plt.savefig('plots/savings_v_dev_cost')
@@ -153,9 +153,9 @@ def make_savings_v_i_var_plot(static, auto, param_filter, i_var, transform=lambd
     plt.close()
 
 
-def generate_candidate_jobs(sorted_auto, path, fraction=0.01, **kwargs):
+def generate_candidate_jobs(sorted_auto, path, fraction=0.01, static_minima=STATIC_MINIMA, **kwargs):
     minima = defaultdict(list)
-    candidates_per_key = max(1, int(len(sorted_auto) / float(len(STATIC_MINIMA) * len(BOOT_TIMES)) * fraction)) # take the best `fraction`
+    candidates_per_key = max(1, int(len(sorted_auto) / float(len(static_minima) * len(BOOT_TIMES)) * fraction)) # take the best `fraction`
     for result in sorted_auto:
         params = result['input']
         result_key = (params['build_run_time'], params['builds_per_hour'], params['builder_boot_time'])

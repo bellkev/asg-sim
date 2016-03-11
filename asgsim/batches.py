@@ -4,11 +4,13 @@ import sys
 from multiprocessing import Pool
 
 from .cost import run_job
+from .model import Model
 
 
 HIGH_RESOLUTION = 10
 LOW_RESOLUTION = 60
 TRIAL_DURATION_SECS = 100000 # about a day
+LONG_TRIAL_DURATION_SECS = 200000 # about two days
 
 # Determined from asgsim.plots.static methods
 
@@ -16,6 +18,8 @@ STATIC_MINIMA = [(300, 10.0, 5), (300, 50.0, 12), (300, 200.0, 31),
                  (60, 50.0, 5), (120, 50.0, 7), (600, 50.0, 19), (1200, 50.0, 31),
                  (2400, 1.0, 5), (2400, 2.0, 6), (2400, 5.0, 10), (2400, 10.0, 17), (2400, 20.0, 26),
                  (60, 2.0, 2), (120, 2.0, 2), (300, 2.0, 3), (600, 2.0, 3), (1200, 2.0, 5)]
+
+STATIC_MINIMA_LIMITED = STATIC_MINIMA[0:7] # Just the more realistic times
 
 STATIC_MINIMA_EXPENSIVE = [(300, 10.0, 3), (300, 50.0, 9), (300, 200.0, 26),
                            (60, 50.0, 3), (120, 50.0, 5), (600, 50.0, 15), (1200, 50.0, 25),
@@ -40,12 +44,12 @@ def sec_per_tick(*times):
 
 
 def generate_jobs(jobs, path, trials=5):
-    jobs_per_batch = 100
+    jobs_per_batch = 1000
     for job in jobs:
         job['sec_per_tick'] = sec_per_tick(job['build_run_time'],
                                            job.get('builder_boot_time', 9999),
                                            job.get('alarm_period_duration', 9999))
-        job['ticks'] = TRIAL_DURATION_SECS / job['sec_per_tick']
+        job['ticks'] = LONG_TRIAL_DURATION_SECS / job['sec_per_tick']
         job['trials'] = trials
     batch_count = len(jobs) / jobs_per_batch + 1
     for batch in range(batch_count):
@@ -63,8 +67,9 @@ def static_jobs():
     jobs = [{'autoscale': False,
              'build_run_time': build_time,
              'builds_per_hour': traffic,
-             'initial_builder_count': initial}
-            for build_time, traffic, initial in STATIC_MINIMA_EXPENSIVE]
+             'initial_builder_count': initial,
+             'builds_per_hour_fn': Model.SINE}
+            for build_time, traffic, initial in STATIC_MINIMA_LIMITED]
     return jobs
 
 
@@ -88,11 +93,12 @@ def autoscaling_jobs():
              'scale_up_threshold': up_threshold,
              'scale_down_threshold': down_threshold,
              'scale_up_change': scale_up_change,
-             'scale_down_change': scale_down_change}
+             'scale_down_change': scale_down_change,
+             'builds_per_hour_fn': Model.SINE}
             # Start at optimum static fleet sizes
-            for build_time, traffic, initial in STATIC_MINIMA
+            for build_time, traffic, initial in STATIC_MINIMA_LIMITED
             for boot_time in BOOT_TIMES
-            for alarm_period_duration in [60, 300]
+            for alarm_period_duration in [60, 300, 900]
             for up_alarm_count in alarm_count_range
             for down_alarm_count in alarm_count_range
             # Assume it's silly for scale_up_threshold > scale_down_threshold
@@ -103,7 +109,7 @@ def autoscaling_jobs():
 
 
 def generate_autoscaling_jobs(path):
-    generate_jobs(autoscaling_jobs(), path)
+    generate_jobs(autoscaling_jobs(), path, trials=3)
 
 
 def run_batch(path, batch_name, procs=6):
