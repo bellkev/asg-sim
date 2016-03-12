@@ -164,33 +164,44 @@ def generate_candidate_jobs(sorted_auto, path, fraction=0.01, static_minima=STAT
     generate_jobs([result['input'] for key in minima for result in minima[key]], path, **kwargs)
 
 
-def minima_from_sorted_coll(k1, k2, sorted_coll):
+def minima_from_sorted_coll(key_fn, sorted_coll):
     minima = {}
     for result in sorted_coll:
         params = result['input']
-        result_key = (params.get(k1, None), params.get(k2, None))
+        result_key = key_fn(params)
         if result_key not in minima:
             minima[result_key] = result
     return minima
 
 
+def auto_key_fn(x):
+    return (x['build_run_time'], x['builds_per_hour'], x['builder_boot_time'])
+
+
+def static_key_fn(x):
+    return (x['build_run_time'], x['builds_per_hour'])
+
+
 def make_savings_v_boot_time_plot(sorted_static, sorted_auto, scale_var, transform=lambda x:x, scale_var_label=None, suffix='', **kwargs):
     scale_var_label = scale_var_label or scale_var
-    min_autos = minima_from_sorted_coll(scale_var, 'builder_boot_time', sorted_auto)
-    min_statics = minima_from_sorted_coll(scale_var, 'builder_boot_time', sorted_static)
+    min_autos = minima_from_sorted_coll(auto_key_fn, sorted_auto)
+    min_statics = minima_from_sorted_coll(static_key_fn, sorted_static)
     ratios = []
     savings = []
     for min_key in min_autos:
-        static_cost = mean(costs_from_job_results(min_statics[(min_key[0], None)], **kwargs))
+        static_cost = mean(costs_from_job_results(min_statics[min_key[:2]], **kwargs))
         auto_cost = mean(costs_from_job_results(min_autos[min_key], **kwargs))
-        scale_var_transformed = transform(float(min_key[0]))
-        boot_time = float(min_key[1])
+        scale_var_transformed = transform(float(min_autos[min_key]['input'][scale_var]))
+        boot_time = float(min_autos[min_key]['input']['builder_boot_time'])
         ratios.append(boot_time / scale_var_transformed)
         savings.append((1 - auto_cost / static_cost) * 100.0)
     max_savings = {}
     for ratio, saving in zip(ratios, savings):
         bucket = round(log(ratio, 2.0))
+        # if bucket == 0.0:
+        #     print "ratio:", ratio, "saving:", saving,
         if bucket not in max_savings or saving > max_savings[bucket]:
+            # print "added"
             max_savings[bucket] = saving
     plt.title('Savings from Auto Scaling Groups', y=1.05)
     plt.ylabel('Maximum savings over fixed-size fleet (%)')
@@ -203,17 +214,43 @@ def make_savings_v_boot_time_plot(sorted_static, sorted_auto, scale_var, transfo
     plt.close()
 
 
+def dump_max_savings(static, auto):
+    static_key = lambda x: (x['build_run_time'], x['builds_per_hour'])
+    auto_key = lambda x: (x['build_run_time'], x['builds_per_hour'], x['builder_boot_time'])
+    static_costs = {}
+    min_auto_costs = {}
+    min_autos = {}
+    for result in static:
+        static_costs[static_key_fn(result['input'])] = mean(costs_from_job_results(result))
+    for result in auto:
+        key = auto_key_fn(result['input'])
+        cost = mean(costs_from_job_results(result))
+        if key not in min_autos or cost < min_auto_costs[key]:
+            min_autos[key] = result
+            min_auto_costs[key] = cost
+    print 'build_run_time\tbuilds_per_hour\tbuilder_boot_time\tsavings'
+    for key in min_autos:
+        params = min_autos[key]['input']
+        print '\t'.join(map(str, [params['build_run_time'], params['builds_per_hour'], params['builder_boot_time'], 1 - min_auto_costs[key] / static_costs[key[:2]]]))
+
+
+
 if __name__ == '__main__':
     def compare_result_means_expensive(a, b):
         return compare_result_means(a, b, cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE)
-    # generate_candidate_jobs(sorted(load_results('job-archives/2c517e8/auto'), cmp=compare_result_means_expensive), 'job-archives/2c517e8/candidates-expensive1',
-    #                         fraction=0.05, trials=10)
-    # sorted_auto = sorted(load_results('job-archives/2c517e8/candidates-expensive1'), cmp=compare_result_means_expensive)
-    # sorted_static = sorted(load_results('job-archives/2c517e8/static-expensive'), cmp=compare_result_means_expensive)
-    # make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'builds_per_hour',
-    #                               transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds',
-    #                               cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE, suffix='_expensive')
-    # make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time',
-    #                               cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE, suffix='_expensive')
-    make_savings_v_dev_cost_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/auto'),
-                                 {'builder_boot_time': 300, 'build_run_time': 300, 'builds_per_hour': 10.0})
+    # generate_candidate_jobs(sorted(load_results('jobs/auto'), cmp=compare_result_means), 'jobs/candidates1',
+    #                         fraction=0.05, trials=10, static_minima=STATIC_MINIMA_LIMITED)
+    sorted_auto = sorted(load_results('jobs/candidates1'), cmp=compare_result_means)
+    sorted_static = sorted(load_results('jobs/static'), cmp=compare_result_means)
+    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'builds_per_hour',
+                                  transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds',
+                                  suffix='_sine')
+    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time',
+                                  suffix='_sine')
+    # make_savings_v_i_var_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'),
+    #                           {'builder_boot_time': 60, 'build_run_time': 300}, 'builds_per_hour')
+    # make_savings_v_i_var_plot(load_results('jobs/static'), load_results('jobs/candidates1'),
+    #                           {'build_run_time': 300}, 'builds_per_hour')
+    # make_savings_v_dev_cost_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/auto'),
+    #                              {'builder_boot_time': 300, 'build_run_time': 300, 'builds_per_hour': 10.0})
+    # dump_max_savings(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
