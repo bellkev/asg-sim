@@ -9,6 +9,10 @@ from ..model import run_model
 from .utils import plt, plt_title, plt_save
 
 
+def compare_result_means_expensive(a, b):
+    return compare_result_means(a, b, cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE)
+
+
 def generate_candidate_jobs(sorted_auto, path, fraction=0.01, static_minima=STATIC_MINIMA, **kwargs):
     minima = defaultdict(list)
     candidates_per_key = max(1, int(len(sorted_auto) / float(len(static_minima) * len(BOOT_TIMES)) * fraction)) # take the best `fraction`
@@ -96,6 +100,13 @@ def make_linear_contour_plot_for_boot_time(static, auto, boot_time, path):
     plt_save(path)
 
 
+def make_savings_v_boot_time_plot(static, auto):
+    pred = param_match_pred({'builds_per_hour': 50.0, 'build_run_time': 600})
+    rows = min_auto_params(filter(pred, static), filter(pred, auto))
+    plt.plot([params['builder_boot_time'] for params in rows], [params['savings'] for params in rows], 'bo')
+    plt_save('plots/savings_v_boot_time')
+
+
 def make_savings_v_build_time_plot(static, auto):
     boot_time = 300
     slow_pred = param_match_pred({'builder_boot_time': boot_time, 'builds_per_hour': 2.0})
@@ -120,6 +131,17 @@ def make_savings_v_traffic_plot(static, auto):
     plt_save('plots/savings_v_traffic')
 
 
+def make_savings_v_dev_cost_plot(static, auto):
+    dev_costs = [0.01, 0.1, 1, 10, 100]
+    rows = [one_min_auto_params(static, auto,
+                                {'builder_boot_time': 300, 'build_run_time': 300, 'builds_per_hour': 50.0},
+                                cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE,
+                                cost_per_dev_hour=dev_cost)
+            for dev_cost in dev_costs]
+    plt.plot([log(dev_cost, 10) for dev_cost in dev_costs], [row['savings'] for row in rows], 'bo')
+    plt_save('plots/savings_dev_cost_expensive')
+
+
 def make_savings_v_traffic_plot_varying(static_const, auto_const, static_sine, auto_sine):
     boot_time = 300
     pred = param_match_pred({'builder_boot_time': boot_time, 'build_run_time': 300})
@@ -131,26 +153,13 @@ def make_savings_v_traffic_plot_varying(static_const, auto_const, static_sine, a
     plt_save('plots/savings_v_traffic_varying')
 
 
-def make_savings_v_boot_time_plot(static, auto):
-    pred = param_match_pred({'builds_per_hour': 50.0, 'build_run_time': 600})
-    rows = min_auto_params(filter(pred, static), filter(pred, auto))
-    plt.plot([params['builder_boot_time'] for params in rows], [params['savings'] for params in rows], 'bo')
-    plt_save('plots/savings_v_boot_time')
-
-
-def compare_result_means_expensive(a, b):
-    return compare_result_means(a, b, cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE)
+def make_constant_traffic_plots():
+    make_savings_v_build_time_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
+    make_savings_v_traffic_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
+    make_savings_v_boot_time_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
+    make_savings_v_dev_cost_plot(load_results('job-archives/2c517e8/static-expensive'), load_results('job-archives/2c517e8/auto'))
 
 
 if __name__ == '__main__':
-    # sorted_auto = sorted(load_results('jobs/candidates1'), cmp=compare_result_means)
-    # sorted_static = sorted(load_results('jobs/static'), cmp=compare_result_means)
-    # dump_max_savings(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
-    # linear_contour_plot_for_boot_time(load_results('jobs/static'), load_results('jobs/candidates1'), 600, 'plots/contour_sine')
-    # linear_contour_plot_for_boot_time(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'), 600, 'plots/contour_const')
-    # make_scaling_plot()
-    # make_savings_v_build_time_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
-    # make_savings_v_traffic_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
-    # make_savings_v_boot_time_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
     # make_savings_v_traffic_plot_varying(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'),
     #                                     load_results('jobs/static'), load_results('jobs/candidates1'))
