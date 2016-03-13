@@ -258,7 +258,7 @@ def make_cheap_dev_plot():
         {'sizes': range(1, 25), 'opts': {'cost_per_dev_hour': 10}, 'label': '10 dollars / hr', 'color': 'r'},
     ]
     ticks = 100000
-    make_cost_plot('Cheap Developers', configs, [0, 100, 0, ticks * 15 / 1000], 'plots/cheap_devs',
+    make_cost_plot('Cheap Developers', configs, [0, 25, 0, ticks * 1 / 10], 'plots/cheap_devs',
                    cost_per_builder_hour=cost.COST_PER_BUILDER_HOUR_EXPENSIVE,
                    build_run_time=300, builds_per_hour=50.0, ticks=ticks, sec_per_tick=10)
 
