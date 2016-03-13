@@ -6,8 +6,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from numpy import mean
 
-from ..batches import generate_jobs, load_results, STATIC_MINIMA, BOOT_TIMES, TRIAL_DURATION_SECS
+from ..batches import generate_jobs, load_results, STATIC_MINIMA, STATIC_MINIMA_LIMITED, BOOT_TIMES, TRIAL_DURATION_SECS
 from ..cost import costs_from_job_results, cost_ci, compare_result_means, COST_PER_BUILDER_HOUR_EXPENSIVE
+from ..model import run_model
 
 
 def param_match(d1, result):
@@ -51,7 +52,7 @@ def make_savings_v_dev_cost_plot(static, auto, param_filter, trial_duration=TRIA
     plt.close()
 
 
-def make_savings_v_i_var_plot(static, auto, param_filter, i_var, transform=lambda x:x, **kwargs):
+def make_savings_v_i_var_plot(static, auto, param_filter, i_var, transform=lambda x:x, suffix='', **kwargs):
     pred = param_match_pred(param_filter)
     static_costs = {}
     min_autos = {}
@@ -67,7 +68,7 @@ def make_savings_v_i_var_plot(static, auto, param_filter, i_var, transform=lambd
             min_autos[val] = result
             min_auto_costs[val] = cost
     plt.plot([key for key in min_auto_costs], [1 - min_auto_costs[key] / static_costs[key] for key in min_auto_costs], 'bo')
-    plt.savefig('plots/auto_savings_v_' + i_var)
+    plt.savefig('plots/auto_savings_v_%s%s' % (i_var, suffix))
     plt.close()
 
 
@@ -132,9 +133,8 @@ def make_savings_v_boot_time_plot(sorted_static, sorted_auto, scale_var, transfo
     plt.close()
 
 
-def dump_max_savings(static, auto):
-    static_key = lambda x: (x['build_run_time'], x['builds_per_hour'])
-    auto_key = lambda x: (x['build_run_time'], x['builds_per_hour'], x['builder_boot_time'])
+def min_auto_params(static, auto):
+    # Return list of (build_run_time, builds_per_hour, builder_boot_time, max_savings)
     static_costs = {}
     min_auto_costs = {}
     min_autos = {}
@@ -146,29 +146,113 @@ def dump_max_savings(static, auto):
         if key not in min_autos or cost < min_auto_costs[key]:
             min_autos[key] = result
             min_auto_costs[key] = cost
-    print 'build_run_time\tbuilds_per_hour\tbuilder_boot_time\tsavings'
+    ret = []
     for key in min_autos:
         params = min_autos[key]['input']
-        print '\t'.join(map(str, [params['build_run_time'], params['builds_per_hour'], params['builder_boot_time'], 1 - min_auto_costs[key] / static_costs[key[:2]]]))
+        params['savings'] = 1 - min_auto_costs[key] / static_costs[key[:2]]
+        ret.append((params['build_run_time'], params['builds_per_hour'], params['builder_boot_time'], params['savings'], params))
+    return ret
 
+
+def dump_max_savings(static, auto):
+    print 'build_run_time\tbuilds_per_hour\tbuilder_boot_time\tsavings'
+    rows = min_auto_params(static, auto)
+    for row in rows:
+        print '\t'.join(map(str, row))
+
+
+def make_log_contour_plot(static, auto, path):
+    rows = min_auto_params(static, auto)
+    log_boot_build_times = [log(row[2] / float(row[0]), 2) for row in rows]
+    log_boot_sec_pers = [log(row[2] / (3600.0 / row[1]), 2) for row in rows]
+    savings = [row[3] for row in rows]
+    plt.tricontourf(log_boot_build_times, log_boot_sec_pers, savings)
+    plt.xlabel('log(boot_time/build_time)')
+    plt.ylabel('log(boot_time/sec_per)')
+    plt.colorbar()
+    plt.savefig(path)
+    plt.close()
+
+
+def make_linear_contour_plot_for_boot_time(static, auto, boot_time, path):
+    rows = [row for row in min_auto_params(static, auto) if row[2] == boot_time]
+    plt.tricontourf([row[0] for row in rows], [row[1] for row in rows], [row[3] for row in rows], 20)
+    plt.xlabel('build_run_time')
+    plt.ylabel('builds_per_hour')
+    plt.colorbar()
+    plt.savefig(path)
+    plt.close()
+
+
+def make_savings_v_build_time_plot(static, auto):
+    boot_time = 300
+    slow_pred = param_match_pred({'builder_boot_time': boot_time, 'builds_per_hour': 2.0})
+    fast_pred = param_match_pred({'builder_boot_time': boot_time, 'builds_per_hour': 50.0})
+    slow = [row[4] for row in min_auto_params(filter(slow_pred, static), filter(slow_pred, auto))]
+    fast = [row[4] for row in min_auto_params(filter(fast_pred, static), filter(fast_pred, auto))]
+    s_handle, = plt.plot([params['build_run_time'] for params in slow], [params['savings'] for params in slow], 'bo', label='2 builds / hr')
+    f_handle, = plt.plot([params['build_run_time'] for params in fast], [params['savings'] for params in fast], 'gs', label='50 builds / hr')
+    plt.legend(handles=(s_handle, f_handle), loc='upper left')
+    plt.savefig('plots/savings_v_build_time')
+    plt.close()
+
+
+def make_savings_v_traffic_plot(static, auto):
+    boot_time = 300
+    slow_pred = param_match_pred({'builder_boot_time': boot_time, 'build_run_time': 2400})
+    fast_pred = param_match_pred({'builder_boot_time': boot_time, 'build_run_time': 300})
+    slow = [row[4] for row in min_auto_params(filter(slow_pred, static), filter(slow_pred, auto))]
+    fast = [row[4] for row in min_auto_params(filter(fast_pred, static), filter(fast_pred, auto))]
+    s_handle, = plt.plot([params['builds_per_hour'] for params in slow], [params['savings'] for params in slow], 'bo', label='40 min builds')
+    f_handle, = plt.plot([params['builds_per_hour'] for params in fast], [params['savings'] for params in fast], 'gs', label='5 min builds')
+    plt.legend(handles=(s_handle, f_handle), loc='upper right')
+    plt.savefig('plots/savings_v_traffic')
+    plt.close()
+
+
+def make_savings_v_boot_time_plot(static, auto):
+    pred = param_match_pred({'builds_per_hour': 50.0, 'build_run_time': 600})
+    rows = [row[4] for row in min_auto_params(filter(pred, static), filter(pred, auto))]
+    plt.plot([params['builder_boot_time'] for params in rows], [params['savings'] for params in rows], 'bo')
+    plt.savefig('plots/savings_v_boot_time')
+    plt.close()
+
+
+
+def make_scaling_plot():
+    params = [row[4] for row in min_auto_params(load_results('jobs/static'), load_results('jobs/candidates1')) if row[:3] == (300, 200.0, 300)][0]
+    print 'params:', params
+    m = run_model(**params)
+    ax = plt.subplot(111)
+    ax.stackplot(range(1240,1280), m.builders_in_use[1240:1280], m.builders_available[1240:1280], colors=('#BBA4D1', '#3399CC'), linewidth=0)
+    plt.savefig('plots/fig.svg', format='svg')
+    plt.close()
+
+
+def compare_result_means_expensive(a, b):
+    return compare_result_means(a, b, cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE)
 
 
 if __name__ == '__main__':
-    def compare_result_means_expensive(a, b):
-        return compare_result_means(a, b, cost_per_builder_hour=COST_PER_BUILDER_HOUR_EXPENSIVE)
     # generate_candidate_jobs(sorted(load_results('jobs/auto'), cmp=compare_result_means), 'jobs/candidates1',
     #                         fraction=0.05, trials=10, static_minima=STATIC_MINIMA_LIMITED)
-    sorted_auto = sorted(load_results('jobs/candidates1'), cmp=compare_result_means)
-    sorted_static = sorted(load_results('jobs/static'), cmp=compare_result_means)
-    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'builds_per_hour',
-                                  transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds',
-                                  suffix='_sine')
-    make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time',
-                                  suffix='_sine')
+    # sorted_auto = sorted(load_results('jobs/candidates1'), cmp=compare_result_means)
+    # sorted_static = sorted(load_results('jobs/static'), cmp=compare_result_means)
+    # make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'builds_per_hour',
+    #                               transform=lambda x: 3600.0 / x, scale_var_label='mean_time_between_builds',
+    #                               suffix='_sine')
+    # make_savings_v_boot_time_plot(sorted_static, sorted_auto, 'build_run_time',
+    #                               suffix='_sine')
     # make_savings_v_i_var_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'),
-    #                           {'builder_boot_time': 60, 'build_run_time': 300}, 'builds_per_hour')
+    #                           {'builder_boot_time': 600, 'build_run_time': 300}, 'builds_per_hour', suffix='_const')
     # make_savings_v_i_var_plot(load_results('jobs/static'), load_results('jobs/candidates1'),
-    #                           {'build_run_time': 300}, 'builds_per_hour')
+    #                           {'builder_boot_time': 300, 'build_run_time': 300}, 'builds_per_hour', suffix='_sine')
     # make_savings_v_dev_cost_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/auto'),
     #                              {'builder_boot_time': 300, 'build_run_time': 300, 'builds_per_hour': 10.0})
     # dump_max_savings(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
+    # linear_contour_plot_for_boot_time(load_results('jobs/static'), load_results('jobs/candidates1'), 600, 'plots/contour_sine')
+    # linear_contour_plot_for_boot_time(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'), 600, 'plots/contour_const')
+    make_scaling_plot()
+    # make_savings_v_build_time_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
+    # make_savings_v_traffic_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
+    # make_savings_v_boot_time_plot(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'))
