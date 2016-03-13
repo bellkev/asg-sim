@@ -3,10 +3,11 @@ from multiprocessing import Pool
 
 from numpy import mean
 
+from ..batches import STATIC_MINIMA_LIMITED
 from .. import cost
 from ..cost import costs
 from ..model import run_model
-from .utils import plt, plt_title, plt_save
+from .utils import plt, plt_title, plt_save, make_scaling_plot
 
 
 def merge(*dict_args):
@@ -271,6 +272,20 @@ def make_optimum_cheap_dev_plot():
                       ticks=100000, builds_per_hour=50.0, build_run_time=300)
 
 
+def make_optimum_capacity_v_load_plot():
+    loads = [ (build_time / 3600.0) * traffic for build_time, traffic, _ in STATIC_MINIMA_LIMITED]
+    capacities = [ fleet_size for _, _, fleet_size in STATIC_MINIMA_LIMITED]
+    plt.plot(loads, [capacity / load for capacity, load in zip(capacities, loads)], 'bo')
+    plt_save('plots/optimum_capacity_v_load')
+
+
+def make_capacity_plot():
+    make_scaling_plot({'build_run_time': 300, 'builds_per_hour': 50.0,
+                       'initial_builder_count': 12, 'ticks': 101, 'sec_per_tick': 60},
+                      'Optimal Machine Usage for 5 min builds, 50 builds / hr',
+                      'plots/static_capacity')
+
+
 
 if __name__ == '__main__':
     print 'Resolution'
@@ -292,3 +307,6 @@ if __name__ == '__main__':
     print 'Cheap Devs'
     make_cheap_dev_plot()
     make_optimum_cheap_dev_plot()
+    print 'Capacity Plots'
+    make_optimum_capacity_v_load_plot()
+    make_capacity_plot()

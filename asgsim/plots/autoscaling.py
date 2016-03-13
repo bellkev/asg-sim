@@ -125,7 +125,7 @@ def make_savings_v_traffic_plot_varying(static_const, auto_const, static_sine, a
     pred = param_match_pred({'builder_boot_time': boot_time, 'build_run_time': 300})
     const = min_auto_params(filter(pred, static_const), filter(pred, auto_const))
     sine = min_auto_params(filter(pred, static_sine), filter(pred, auto_sine))
-    c_handle, = plt.plot([params['builds_per_hour'] for params in const], [params['savings'] for params in const], 'bo', label='Constant Trafic')
+    c_handle, = plt.plot([params['builds_per_hour'] for params in const], [params['savings'] for params in const], 'bo', label='Constant Traffic')
     s_handle, = plt.plot([params['builds_per_hour'] for params in sine], [params['savings'] for params in sine], 'gs', label='Sine-Varying Traffic')
     plt.legend(handles=(c_handle, s_handle), loc='upper left')
     plt_save('plots/savings_v_traffic_varying')
@@ -136,15 +136,6 @@ def make_savings_v_boot_time_plot(static, auto):
     rows = min_auto_params(filter(pred, static), filter(pred, auto))
     plt.plot([params['builder_boot_time'] for params in rows], [params['savings'] for params in rows], 'bo')
     plt_save('plots/savings_v_boot_time')
-
-
-def make_scaling_plot():
-    params = one_min_auto_params(load_results('jobs/static'), load_results('jobs/candidates1'),
-                                 {'builder_boot_time': 300, 'build_run_time': 300, 'builds_per_hour': 200.0})
-    m = run_model(**params)
-    ax = plt.subplot(111)
-    ax.stackplot(range(m.ticks), m.builders_in_use, m.builders_available, colors=('#BBA4D1', '#3399CC'), linewidth=0)
-    plt_save('plots/fig')
 
 
 def compare_result_means_expensive(a, b):
