@@ -1,14 +1,12 @@
 from math import log
 from multiprocessing import Pool
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from numpy import mean
 
 from .. import cost
 from ..cost import costs
 from ..model import run_model
+from .utils import plt, plt_title, plt_save
 
 
 def merge(*dict_args):
@@ -16,15 +14,6 @@ def merge(*dict_args):
     for dictionary in dict_args:
         result.update(dictionary)
     return result
-
-
-def plt_title(title):
-    plt.title(title, y=1.05)
-
-
-def plt_save(name):
-    plt.savefig(name + '.svg', format='svg')
-    plt.close()
 
 
 def make_resolution_plot(resolution):

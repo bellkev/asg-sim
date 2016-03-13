@@ -1,14 +1,12 @@
 from collections import defaultdict
 from math import log
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from numpy import mean
 
 from ..batches import generate_jobs, load_results, STATIC_MINIMA, STATIC_MINIMA_LIMITED, BOOT_TIMES, TRIAL_DURATION_SECS
 from ..cost import costs_from_job_results, cost_ci, compare_result_means, COST_PER_BUILDER_HOUR_EXPENSIVE
 from ..model import run_model
+from .utils import plt, plt_title, plt_save
 
 
 def generate_candidate_jobs(sorted_auto, path, fraction=0.01, static_minima=STATIC_MINIMA, **kwargs):
@@ -86,8 +84,7 @@ def make_log_contour_plot(static, auto, path):
     plt.xlabel('log(boot_time/build_time)')
     plt.ylabel('log(boot_time/sec_per)')
     plt.colorbar()
-    plt.savefig(path)
-    plt.close()
+    plt_save(path)
 
 
 def make_linear_contour_plot_for_boot_time(static, auto, boot_time, path):
@@ -96,8 +93,7 @@ def make_linear_contour_plot_for_boot_time(static, auto, boot_time, path):
     plt.xlabel('build_run_time')
     plt.ylabel('builds_per_hour')
     plt.colorbar()
-    plt.savefig(path)
-    plt.close()
+    plt_save(path)
 
 
 def make_savings_v_build_time_plot(static, auto):
@@ -109,8 +105,7 @@ def make_savings_v_build_time_plot(static, auto):
     s_handle, = plt.plot([params['build_run_time'] for params in slow], [params['savings'] for params in slow], 'bo', label='2 builds / hr')
     f_handle, = plt.plot([params['build_run_time'] for params in fast], [params['savings'] for params in fast], 'gs', label='50 builds / hr')
     plt.legend(handles=(s_handle, f_handle), loc='upper left')
-    plt.savefig('plots/savings_v_build_time')
-    plt.close()
+    plt_save('plots/savings_v_build_time')
 
 
 def make_savings_v_traffic_plot(static, auto):
@@ -122,8 +117,7 @@ def make_savings_v_traffic_plot(static, auto):
     s_handle, = plt.plot([params['builds_per_hour'] for params in slow], [params['savings'] for params in slow], 'bo', label='40 min builds')
     f_handle, = plt.plot([params['builds_per_hour'] for params in fast], [params['savings'] for params in fast], 'gs', label='5 min builds')
     plt.legend(handles=(s_handle, f_handle), loc='upper right')
-    plt.savefig('plots/savings_v_traffic')
-    plt.close()
+    plt_save('plots/savings_v_traffic')
 
 
 def make_savings_v_traffic_plot_varying(static_const, auto_const, static_sine, auto_sine):
@@ -134,18 +128,14 @@ def make_savings_v_traffic_plot_varying(static_const, auto_const, static_sine, a
     c_handle, = plt.plot([params['builds_per_hour'] for params in const], [params['savings'] for params in const], 'bo', label='Constant Trafic')
     s_handle, = plt.plot([params['builds_per_hour'] for params in sine], [params['savings'] for params in sine], 'gs', label='Sine-Varying Traffic')
     plt.legend(handles=(c_handle, s_handle), loc='upper left')
-    plt.savefig('plots/savings_v_traffic_varying')
-    plt.close()
-
+    plt_save('plots/savings_v_traffic_varying')
 
 
 def make_savings_v_boot_time_plot(static, auto):
     pred = param_match_pred({'builds_per_hour': 50.0, 'build_run_time': 600})
     rows = min_auto_params(filter(pred, static), filter(pred, auto))
     plt.plot([params['builder_boot_time'] for params in rows], [params['savings'] for params in rows], 'bo')
-    plt.savefig('plots/savings_v_boot_time')
-    plt.close()
-
+    plt_save('plots/savings_v_boot_time')
 
 
 def make_scaling_plot():
@@ -154,8 +144,7 @@ def make_scaling_plot():
     m = run_model(**params)
     ax = plt.subplot(111)
     ax.stackplot(range(m.ticks), m.builders_in_use, m.builders_available, colors=('#BBA4D1', '#3399CC'), linewidth=0)
-    plt.savefig('plots/fig.svg', format='svg')
-    plt.close()
+    plt_save('plots/fig')
 
 
 def compare_result_means_expensive(a, b):
