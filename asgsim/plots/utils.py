@@ -14,7 +14,7 @@ def plt_save(path):
     plt.close()
 
 
-def make_scaling_plot(params, title, path):
+def make_scaling_plot(params, title, path, axis=None):
     m = run_model(**params)
     purple = '#BBA4D1'
     blue = '#3399CC'
@@ -26,4 +26,6 @@ def make_scaling_plot(params, title, path):
                ['Busy Builder Machines','Available Builder Machines'])
     plt.xlabel('Time (m)')
     plt.ylabel('Machines')
+    if axis:
+        plt.axis(axis)
     plt_save(path)

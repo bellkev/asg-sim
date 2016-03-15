@@ -79,7 +79,7 @@ def make_cost_curve_plot():
     cost_data = map(mean, p.map(costs, opts))
     p.close()
 
-    plt_title('Cost vs Fleet Size')
+    plt_title('Cost vs Fleet Size (1000 builds / hr, 5 min / build)')
     plt.xlabel('Fleet Size')
     plt.ylabel('Cost ($)')
     plt.plot(sizes, cost_data)

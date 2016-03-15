@@ -6,7 +6,7 @@ from numpy import mean
 from ..batches import generate_jobs, load_results, STATIC_MINIMA, STATIC_MINIMA_LIMITED, BOOT_TIMES, TRIAL_DURATION_SECS
 from ..cost import costs_from_job_results, cost_ci, compare_result_means, COST_PER_BUILDER_HOUR_EXPENSIVE
 from ..model import run_model
-from .utils import plt, plt_title, plt_save
+from .utils import plt, plt_title, plt_save, make_scaling_plot
 
 
 def compare_result_means_expensive(a, b):
@@ -103,7 +103,11 @@ def make_linear_contour_plot_for_boot_time(static, auto, boot_time, path):
 def make_savings_v_boot_time_plot(static, auto):
     pred = param_match_pred({'builds_per_hour': 50.0, 'build_run_time': 600})
     rows = min_auto_params(filter(pred, static), filter(pred, auto))
-    plt.plot([params['builder_boot_time'] for params in rows], [params['savings'] for params in rows], 'bo')
+    plt_title('Max Savings Over Static Fleet (50 builds / hr, 10 min / build)')
+    plt.xlabel('Builder Boot Time (m)')
+    plt.ylabel('Savings (%)')
+    plt.axis([0, 11, 0, 35])
+    plt.plot([params['builder_boot_time'] / 60.0 for params in rows], [params['savings'] * 100.0 for params in rows], 'bo')
     plt_save('plots/savings_v_boot_time')
 
 
@@ -113,8 +117,12 @@ def make_savings_v_build_time_plot(static, auto):
     fast_pred = param_match_pred({'builder_boot_time': boot_time, 'builds_per_hour': 50.0})
     slow = min_auto_params(filter(slow_pred, static), filter(slow_pred, auto))
     fast = min_auto_params(filter(fast_pred, static), filter(fast_pred, auto))
-    s_handle, = plt.plot([params['build_run_time'] for params in slow], [params['savings'] for params in slow], 'bo', label='2 builds / hr')
-    f_handle, = plt.plot([params['build_run_time'] for params in fast], [params['savings'] for params in fast], 'gs', label='50 builds / hr')
+    plt_title('Max Savings Over Static Fleet (5 min builder boot time)')
+    plt.xlabel('Build Run Time (m)')
+    plt.ylabel('Savings (%)')
+    plt.axis([0, 41, 0, 50])
+    s_handle, = plt.plot([params['build_run_time'] / 60.0 for params in slow], [params['savings'] * 100.0 for params in slow], 'bo', label='2 builds / hr')
+    f_handle, = plt.plot([params['build_run_time'] / 60.0 for params in fast], [params['savings'] * 100.0 for params in fast], 'gs', label='50 builds / hr')
     plt.legend(handles=(s_handle, f_handle), loc='upper left')
     plt_save('plots/savings_v_build_time')
 
@@ -125,8 +133,12 @@ def make_savings_v_traffic_plot(static, auto):
     fast_pred = param_match_pred({'builder_boot_time': boot_time, 'build_run_time': 300})
     slow = min_auto_params(filter(slow_pred, static), filter(slow_pred, auto))
     fast = min_auto_params(filter(fast_pred, static), filter(fast_pred, auto))
-    s_handle, = plt.plot([params['builds_per_hour'] for params in slow], [params['savings'] for params in slow], 'bo', label='40 min builds')
-    f_handle, = plt.plot([params['builds_per_hour'] for params in fast], [params['savings'] for params in fast], 'gs', label='5 min builds')
+    plt_title('Max Savings Over Static Fleet (5 min builder boot time)')
+    plt.xlabel('Builds Per Hour')
+    plt.ylabel('Savings (%)')
+    plt.axis([0, 205, 0, 50])
+    s_handle, = plt.plot([params['builds_per_hour'] for params in slow], [params['savings'] * 100.0 for params in slow], 'bo', label='40 min builds')
+    f_handle, = plt.plot([params['builds_per_hour'] for params in fast], [params['savings'] * 100.0 for params in fast], 'gs', label='5 min builds')
     plt.legend(handles=(s_handle, f_handle), loc='upper right')
     plt_save('plots/savings_v_traffic')
 
@@ -161,5 +173,18 @@ def make_constant_traffic_plots():
 
 
 if __name__ == '__main__':
+    make_constant_traffic_plots()
+    params = one_min_auto_params(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'),
+                                          {'build_run_time': 2400, 'builds_per_hour': 2, 'builder_boot_time': 300})
+    params['ticks'] = 2000
+    params2 = one_min_auto_params(load_results('jobs/static'), load_results('jobs/candidates1'),
+                                          {'build_run_time': 300, 'builds_per_hour': 200.0, 'builder_boot_time': 300})
+    params2['ticks'] = 1500 * 60
+    print params2
+    make_scaling_plot(params,
+                      'Auto Scaling Fleet Capacity and Usage (40 min / build, 2 builds / hr)', 'plots/slow_auto_scaling', axis=[0, 20000 / 60, 0, 8])
+    make_scaling_plot(params2,
+                      'Auto Scaling Fleet Capacity and Usage (5 min / build, 200 builds / hr)', 'plots/sine_auto_scaling', axis=[0, 1500, 0, 35])
+
     # make_savings_v_traffic_plot_varying(load_results('job-archives/2c517e8/static'), load_results('job-archives/2c517e8/candidates2'),
     #                                     load_results('jobs/static'), load_results('jobs/candidates1'))
