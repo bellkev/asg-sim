@@ -16,6 +16,7 @@ def compare_result_means_expensive(a, b):
 def generate_candidate_jobs(sorted_auto, path, fraction=0.01, static_minima=STATIC_MINIMA, **kwargs):
     minima = defaultdict(list)
     candidates_per_key = max(1, int(len(sorted_auto) / float(len(static_minima) * len(BOOT_TIMES)) * fraction)) # take the best `fraction`
+    print 'candidates per key:', candidates_per_key
     for result in sorted_auto:
         params = result['input']
         result_key = (params['build_run_time'], params['builds_per_hour'], params['builder_boot_time'])
