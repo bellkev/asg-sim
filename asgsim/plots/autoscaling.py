@@ -1,4 +1,5 @@
 from collections import defaultdict
+import csv
 from math import log
 
 from numpy import mean
@@ -73,11 +74,13 @@ def one_min_auto_params(static, auto, param_filter, **kwargs):
     return params[0]
 
 
-def dump_max_savings(static, auto):
-    print 'build_run_time\tbuilds_per_hour\tbuilder_boot_time\tsavings'
+def dump_params(static, auto, path):
     rows = min_auto_params(static, auto)
-    for row in rows:
-        print '\t'.join(map(str, [row['build_run_time'], row['builds_per_hour'], row['builder_boot_time'], row['savings']]))
+    with open(path, 'w') as f:
+        writer = csv.DictWriter(f, sorted(rows[0].keys()))
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
 
 
 def make_log_contour_plot(static, auto, path):
