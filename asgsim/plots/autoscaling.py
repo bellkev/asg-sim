@@ -170,9 +170,13 @@ def make_savings_v_traffic_plot_varying(static_const, auto_const, static_sine, a
     pred = param_match_pred({'builder_boot_time': boot_time, 'build_run_time': 300})
     const = min_auto_params(filter(pred, static_const), filter(pred, auto_const))
     sine = min_auto_params(filter(pred, static_sine), filter(pred, auto_sine))
-    c_handle, = plt.plot([params['builds_per_hour'] for params in const], [params['savings'] for params in const], 'bo', label='Constant Traffic')
-    s_handle, = plt.plot([params['builds_per_hour'] for params in sine], [params['savings'] for params in sine], 'gs', label='Sine-Varying Traffic')
+    plt_title('Max Savings Over Static Fleet (5 min boot time, 5 min / build)')
+    plt.xlabel('Builds Per Hour')
+    plt.ylabel('Savings (%)')
+    c_handle, = plt.plot([params['builds_per_hour'] for params in const], [params['savings'] * 100.0 for params in const], 'bo', label='Constant Traffic')
+    s_handle, = plt.plot([params['builds_per_hour'] for params in sine], [params['savings'] * 100.0 for params in sine], 'gs', label='Sine-Varying Traffic')
     plt.legend(handles=(c_handle, s_handle), loc='upper left')
+    plt.axis([0, 210, 0, 50])
     plt_save('plots/savings_v_traffic_varying')
 
 
@@ -283,6 +287,6 @@ def test_recommendations():
 
 
 if __name__ == '__main__':
-    # make_constant_traffic_plots()
-    # make_varying_traffic_plots()
+    make_constant_traffic_plots()
+    make_varying_traffic_plots()
     test_recommendations()
