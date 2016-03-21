@@ -131,8 +131,8 @@ class Model(object):
     - Only one type of build: Every build takes exactly the same integer number
       of seconds
     - Assumes traffic is random: Random traffic is generated according to a
-      Poisson distribution, so things like end-of-day spikes in commits or strings
-      of repeated builds to detect flaky tests will not be modeled
+      Poisson distribution, optionally multiplied by build_per_hour_fn so things like
+      repeated builds to detect flaky tests will not be modeled
     """
 
     CONSTANT = 0
