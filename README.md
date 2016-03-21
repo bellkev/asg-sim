@@ -13,7 +13,8 @@ according to the rules of [AWS Auto Scaling groups](https://aws.amazon.com/autos
 >>> from asgsim.model import Model, run_model
 >>> from asgsim.plots.utils import make_scaling_plot
 >>> help(Model)
-...
+```
+```
  |  A simplified model of a CircleCI Enterprise builder ASG.
  |
  |  Available parameters:
@@ -47,7 +48,9 @@ according to the rules of [AWS Auto Scaling groups](https://aws.amazon.com/autos
  |  - Assumes traffic is random: Random traffic is generated according to a
  |    Poisson distribution, optionally multiplied by build_per_hour_fn so things like
  |    repeated builds to detect flaky tests will not be modeled
-...
+```
+
+```python
 >>> params = {'builder_boot_time': 300,
 ...           'builds_per_hour': 200.0,
 ...           'build_run_time': 300,
@@ -68,3 +71,4 @@ according to the rules of [AWS Auto Scaling groups](https://aws.amazon.com/autos
 0.05128850779598571
 >>> make_scaling_plot(params, 'My Scaling Plot', 'fig')
 ```
+![](assets/fig.png)
