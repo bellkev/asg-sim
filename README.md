@@ -7,6 +7,8 @@ A simple computational model of build clusters with various parameters
 under varying workloads, either of a fixed size or dynamically scalable
 according to the rules of [AWS Auto Scaling groups](https://aws.amazon.com/autoscaling/).
 
+For more background, see the related [blog series](https://circleci.com/blog/mathematical-justification-for-not-letting-builds-queue/).
+
 ## Example Usage
 
 ```python
